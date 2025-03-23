@@ -1,0 +1,15 @@
+services:
+  simple_grasping:
+    container_name: simple_grasping
+    image: simple_grasping
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    environment:
+      ROS_DOMAIN_ID: 42
+      DISPLAY: $DISPLAY
+    network_mode: host
+    ipc: host
+    privileged: true
+    stdin_open: true
+    command: tail -f /dev/null
