@@ -19,8 +19,25 @@ find_package(tf2_eigen REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(visualization_msgs REQUIRED)
+find_package(OpenCV REQUIRED)
 
-# Define the traversability_estimation_node executable
+# Find GPD library and headers
+find_library(GPD_LIBRARY
+  NAMES gpd libgpd
+  HINTS /opt/gpd/build
+)
+find_path(GPD_INCLUDE_DIR
+  NAMES gpd/grasp_detector.h
+  HINTS /opt/gpd/include
+)
+if(NOT GPD_LIBRARY)
+  message(FATAL_ERROR "GPD library not found in /opt/gpd/build. Please verify that GPD is built and the library file exists.")
+endif()
+if(NOT GPD_INCLUDE_DIR)
+  message(FATAL_ERROR "GPD include directory not found in /opt/gpd/include. Please verify your GPD source location.")
+endif()
+
+# Define the simple_grasping_node executable
 add_executable(simple_grasping_node
   src/main.cpp
   src/node.cpp
@@ -35,16 +52,17 @@ target_include_directories(simple_grasping_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
   ${PCL_INCLUDE_DIRS}
+  ${GPD_INCLUDE_DIR}
+  ${OpenCV_INCLUDE_DIRS}
 )
 
-# Link against PCL libraries
-target_link_libraries(simple_grasping_node ${PCL_LIBRARIES})
+# Link against PCL and GPD libraries and OpenCV
+target_link_libraries(simple_grasping_node ${PCL_LIBRARIES} ${GPD_LIBRARY} ${OpenCV_LIBS})
 
 # Add PCL definitions
 target_compile_definitions(simple_grasping_node PUBLIC ${PCL_DEFINITIONS} -DPCL_NO_PRECOMPILE)
 
-
-# Add dependencies for traversability_estimation_node
+# Add dependencies for simple_grasping_node
 ament_target_dependencies(simple_grasping_node
   simple_grasping_interfaces
   rclcpp
@@ -60,7 +78,7 @@ ament_target_dependencies(simple_grasping_node
 # Set C++ standard
 set_target_properties(simple_grasping_node PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES)
 
-# Link OpenMP to both nodes
+# Link OpenMP if available
 if(OpenMP_CXX_FOUND)
   target_link_libraries(simple_grasping_node OpenMP::OpenMP_CXX)
   target_compile_definitions(simple_grasping_node PUBLIC -DUSE_OPENMP)
@@ -68,7 +86,8 @@ endif()
 
 # Install targets
 install(TARGETS simple_grasping_node
-  DESTINATION lib/${PROJECT_NAME})
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 # Install launch and params directories
 install(DIRECTORY launch/
@@ -81,7 +100,6 @@ install(DIRECTORY params/
 # Testing setup
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
-  # Skip specific linter if necessary
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()

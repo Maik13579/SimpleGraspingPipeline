@@ -5,14 +5,21 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+    runtime: nvidia
     environment:
       ROS_DOMAIN_ID: 42
       DISPLAY: $DISPLAY
+      QT_X11_NO_MITSHM: "1"
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDI_DRIVER_CAPABILITIES: compute,video,utility,graphics
+      LIBGL_ALWAYS_SOFTWARE: "1"
     network_mode: host
     ipc: host
     privileged: true
     stdin_open: true
     volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - $HOME/.Xauthority:/root/.Xauthority
       - ../simple_grasping/params:/root/ros2_ws/src/simple_grasping/params
     command: ros2 launch simple_grasping simple_grasping.launch.py input_cloud_topic:=/head_front_camera/depth_registered/points
 
@@ -31,3 +38,7 @@ services:
           sort_planes_by_height: true
           height_above_plane: 0.35
           width_adjustment: -0.05" 
+
+          sleep 3
+          ros2 action send_goal /simple_grasping/simple_grasp simple_grasping_interfaces/action/SimpleGrasp "object_index: 0
+          disable_top_grasp: false" 

@@ -1,11 +1,13 @@
-# Goal
-string todo
-
+# You have to run SimplePerception first to populate objects
+# Then choose a object to grasp
+int32 object_index #index of object to grasp
+bool disable_top_grasp
 ---
-# Result
-string todo
 
+# Result
+bool success
+string message
 
 ---
 # Feedback
-string todo
+

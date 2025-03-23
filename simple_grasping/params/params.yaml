@@ -5,6 +5,7 @@ simple_grasping:
       # and it is easier if floor is at z=0
       n_threads: 4
       debug: True
+      gpd_cfg_file: "/root/ros2_ws/src/simple_grasping/params/gpd.cfg"
     filter:
       voxel_size: 0.005 #0.0 to disable
       radius: 0.05

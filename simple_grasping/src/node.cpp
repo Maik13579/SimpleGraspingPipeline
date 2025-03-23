@@ -14,6 +14,9 @@
 #include <visualization_msgs/msg/marker_array.hpp>
 #include <visualization_msgs/msg/marker.hpp>
 
+#include <pcl/common/transforms.h>
+#include <boost/shared_ptr.hpp>
+
 using namespace std::placeholders;
 
 SimpleGraspingNode::SimpleGraspingNode(const rclcpp::NodeOptions &options)
@@ -21,6 +24,9 @@ SimpleGraspingNode::SimpleGraspingNode(const rclcpp::NodeOptions &options)
 {
   // Load parameters
   load_parameters(config_, this);
+
+  // Load GPD
+  grasp_detector_ = std::make_unique<gpd::GraspDetector>(config_.common.gpd_cfg_file);
 
   // Initialize TF2 buffer and listener for cloud transformation
   tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
@@ -39,7 +45,7 @@ SimpleGraspingNode::SimpleGraspingNode(const rclcpp::NodeOptions &options)
     std::bind(&SimpleGraspingNode::sensor_callback, this, _1)
   );
 
-  // Create the action server for simple perception using a member callback for execution
+  // Create the action server
   perception_action_server_ = rclcpp_action::create_server<SimplePerception>(
     this,
     "~/simple_perception",
@@ -50,6 +56,18 @@ SimpleGraspingNode::SimpleGraspingNode(const rclcpp::NodeOptions &options)
       return rclcpp_action::CancelResponse::ACCEPT;
     },
     std::bind(&SimpleGraspingNode::execute_simple_perception, this, _1)
+  );
+
+  grasp_action_server_ = rclcpp_action::create_server<SimpleGrasp>(
+    this,
+    "~/simple_grasp",
+    [this](const auto &, const auto &) -> rclcpp_action::GoalResponse {
+      return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
+    },
+    [this](const auto &) -> rclcpp_action::CancelResponse {
+      return rclcpp_action::CancelResponse::ACCEPT;
+    },
+    std::bind(&SimpleGraspingNode::execute_simple_grasp, this, _1)
   );
 }
 
@@ -221,10 +239,85 @@ void SimpleGraspingNode::execute_simple_perception(const std::shared_ptr<GoalHan
     debug_pub_markers_->publish(obj_marker_array);
   }
 
+  // Store planes and objects
+  planes_ = planes;
+  objects_ = objects;
+
   result->success = true;
   result->message = "Point cloud processed: transformed, filtered, and object detection completed";
   goal_handle->succeed(result);
 }
+
+
+
+void SimpleGraspingNode::execute_simple_grasp(const std::shared_ptr<GoalHandleSimpleGrasp> goal_handle)
+{
+  auto goal = goal_handle->get_goal();
+  auto result = std::make_shared<SimpleGrasp::Result>();
+
+  if (goal->object_index < 0 || goal->object_index >= static_cast<int>(objects_.size())) {
+    result->success = false;
+    result->message = "Invalid object index";
+    goal_handle->abort(result);
+    return;
+  }
+
+  const Object &selected_obj = objects_[goal->object_index];
+  pcl::PointCloud<pcl::PointXYZ>::Ptr combined_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+
+  int idx_counter = 0;
+  std::vector<int> selected_obj_indices;
+
+  for (size_t i = 0; i < objects_.size(); ++i) {
+    if (objects_[i].plane_index == selected_obj.plane_index && objects_[i].cloud) {
+      if (static_cast<int>(i) == goal->object_index) {
+        for (size_t pt = 0; pt < objects_[i].cloud->points.size(); ++pt)
+          selected_obj_indices.push_back(idx_counter + pt);
+      }
+      idx_counter += objects_[i].cloud->points.size();
+      *combined_cloud += *(objects_[i].cloud);
+    }
+  }
+
+  Eigen::Matrix3f R_inv = selected_obj.obb.rotation.transpose();
+  Eigen::Vector3f center(selected_obj.obb.center.x, selected_obj.obb.center.y, selected_obj.obb.center.z);
+  pcl::transformPointCloud(*combined_cloud, *combined_cloud, Eigen::Affine3f(Eigen::Translation3f(-R_inv * center) * R_inv));
+
+  combined_cloud_rgb_ = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>());
+  pcl::copyPointCloud(*combined_cloud, *combined_cloud_rgb_);
+
+  geometry_msgs::msg::TransformStamped sensor_to_target = tf_buffer_->lookupTransform(
+      config_.common.frame_id, latest_cloud_->header.frame_id, rclcpp::Time(0), rclcpp::Duration(1, 0));
+
+  view_points_.resize(3,1);
+  view_points_ << sensor_to_target.transform.translation.x,
+                  sensor_to_target.transform.translation.y,
+                  sensor_to_target.transform.translation.z;
+
+  camera_source_ = Eigen::MatrixXi::Ones(1, combined_cloud_rgb_->size());
+
+  gpd_cloud_ = std::make_shared<gpd::util::Cloud>(combined_cloud_rgb_, camera_source_, view_points_);
+  gpd_cloud_->setSampleIndices(selected_obj_indices);
+
+  grasp_detector_->preprocessPointCloud(*gpd_cloud_);
+
+  if (gpd_cloud_->getCloudProcessed()->empty() || gpd_cloud_->getSampleIndices().empty()) {
+    result->success = false;
+    result->message = "Preprocessed cloud or indices empty!";
+    goal_handle->abort(result);
+    return;
+  }
+
+  auto grasps = grasp_detector_->detectGrasps(*gpd_cloud_);
+  RCLCPP_INFO(get_logger(), "Detected %zu grasps from GPD.", grasps.size());
+
+  result->success = true;
+  result->message = "Grasps detected safely.";
+  goal_handle->succeed(result);
+}
+
+
+
 
 visualization_msgs::msg::Marker SimpleGraspingNode::createMarkerFromOBB(
     const OBB &obb,

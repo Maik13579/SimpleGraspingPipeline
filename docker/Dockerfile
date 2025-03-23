@@ -19,6 +19,17 @@ RUN apt update \
  && apt install -y ros-$ROS_DISTRO-rmw-cyclonedds-cpp \
  && rm -rf /var/lib/apt/lists/*
 
+# Install GPD https://github.com/atenpas/gpd
+RUN apt update && apt install -y \
+    libpcl-dev \
+    libeigen3-dev \
+    libopencv-dev \
+ && rm -rf /var/lib/apt/lists/*
+COPY gpd /opt/gpd
+WORKDIR /opt/gpd
+RUN mkdir build && cd build && \
+    cmake .. && make -j4
+
  # Install dependencies
 COPY simple_grasping/package.xml ${ROS_WS}/src/simple_grasping/package.xml
 COPY simple_grasping_interfaces/package.xml ${ROS_WS}/src/simple_grasping_interfaces/package.xml 
