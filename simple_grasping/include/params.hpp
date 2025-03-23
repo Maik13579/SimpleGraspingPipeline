@@ -26,6 +26,7 @@ struct CommonParams
 {
     std::string frame_id;
     int n_threads;
+    bool debug;
 };
 
 struct Workspace

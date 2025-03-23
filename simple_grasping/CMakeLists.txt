@@ -25,6 +25,7 @@ add_executable(simple_grasping_node
   src/main.cpp
   src/node.cpp
   src/params.cpp
+  src/filters.cpp
 )
 
 # Add include directories

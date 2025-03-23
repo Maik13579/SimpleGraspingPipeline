@@ -2,6 +2,8 @@
 #define SIMPLE_GRASPING_NODE_HPP
 
 #include "params.hpp"
+#include "filters.hpp"
+
 #include <simple_grasping_interfaces/action/simple_perception.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
@@ -19,6 +21,9 @@ public:
 
 private:
   NodeConfig config_;
+
+  // Debug publisher
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr debug_pub_;
 
   void sensor_callback(const sensor_msgs::msg::PointCloud2::SharedPtr msg);
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_;

@@ -21,7 +21,7 @@ def generate_launch_description():
     simple_grasping_node = Node(
         package='simple_grasping',
         executable='simple_grasping_node',
-        name='simple_grasping_node',
+        name='simple_grasping',
         output='screen',
         parameters=[params_file],
         remappings=[('~/input_cloud', LaunchConfiguration('input_cloud_topic'))]

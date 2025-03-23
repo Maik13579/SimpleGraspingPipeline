@@ -5,6 +5,7 @@ void load_parameters(NodeConfig &config, rclcpp::Node *node)
     // Common parameters
     config.common.frame_id = declare_and_get_parameter<std::string>("common.frame_id", "base_footprint", node, "common.frame_id");
     config.common.n_threads = declare_and_get_parameter<int>("common.n_threads", 1, node, "common.n_threads");
+    config.common.debug = declare_and_get_parameter<bool>("common.debug", false, node, "common.debug");
 
     // Filter parameters
     config.filter.voxel_size = declare_and_get_parameter<float>("filter.voxel_size", 0.005f, node, "filter.voxel_size");
