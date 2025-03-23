@@ -3,10 +3,12 @@
 
 #include "params.hpp"
 #include "filters.hpp"
+#include "plane_detector.hpp"
 
 #include <simple_grasping_interfaces/action/simple_perception.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
 #include <rclcpp_action/rclcpp_action.hpp>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/buffer.h>
@@ -24,6 +26,7 @@ private:
 
   // Debug publisher
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr debug_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr debug_pub_markers_;
 
   void sensor_callback(const sensor_msgs::msg::PointCloud2::SharedPtr msg);
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_;
@@ -35,6 +38,8 @@ private:
 
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
+
+  visualization_msgs::msg::Marker createMarkerFromOBB(const OBB &obb, const std::string &ns, int id, float r, float g, float b, float a=1.0);
 };
 
 #endif // SIMPLE_GRASPING_NODE_HPP

@@ -12,4 +12,22 @@ services:
     ipc: host
     privileged: true
     stdin_open: true
+    volumes:
+      - ../simple_grasping/params:/root/ros2_ws/src/simple_grasping/params
     command: ros2 launch simple_grasping simple_grasping.launch.py input_cloud_topic:=/head_front_camera/depth_registered/points
+
+  test:
+    container_name: test
+    extends: simple_grasping
+    command: 
+      - bash
+      - -c
+      - |
+          sleep 2
+          ros2 action send_goal /simple_grasping/simple_perception simple_grasping_interfaces/action/SimplePerception "querry_point:
+            x: 0.0
+            y: 0.0
+            z: 0.0
+          sort_planes_by_height: false
+          height_above_plane: 0.0
+          width_adjustment: 0.0" 
