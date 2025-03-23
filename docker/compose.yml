@@ -41,4 +41,4 @@ services:
 
           sleep 3
           ros2 action send_goal /simple_grasping/simple_grasp simple_grasping_interfaces/action/SimpleGrasp "object_index: 0
-          disable_top_grasp: false" 
+          disable_top_grasp: true" 

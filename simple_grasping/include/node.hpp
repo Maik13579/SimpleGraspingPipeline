@@ -62,6 +62,11 @@ private:
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 
   visualization_msgs::msg::Marker createMarkerFromOBB(const OBB &obb, const std::string &ns, int id, float r, float g, float b, float a=1.0);
+  visualization_msgs::msg::MarkerArray createGraspMarker(
+    const gpd::candidate::Hand &grasp,
+    int id,
+    const std::string &frame_id,
+    const Eigen::Affine3f &T_obj_inv);
 };
 
 #endif // SIMPLE_GRASPING_NODE_HPP
