@@ -1,0 +1,30 @@
+simple_grasping:
+  ros__parameters:
+    common:
+      frame_id: "base_footprint" #z axis must be upwards
+      # and it is easier if floor is at z=0
+      n_threads: 4
+    filter:
+      voxel_size: 0.005
+      radius: 0.05
+      min_points: 3
+      workspace:
+        x_min: -1.0
+        x_max: 1.0
+        y_min: -1.0
+        y_max: 1.0
+        z_min: 0.1 #no floor
+        z_max: 2.0
+    plane_detection:
+      normal_estimation_radius: 0.05
+      horizontal_threshold: 2.0 # degree
+      clustering_tolerance: 0.05
+      clustering_min_cluster_size: 20
+      clustering_max_cluster_size: 1000000
+      min_area: 0.1
+      plane_thickness: 0.02
+      ransac_iterations: 100
+    object_detection:
+      clustering_tolerance: 0.025
+      clustering_min_cluster_size: 10
+      clustering_max_cluster_size: 5000

@@ -20,6 +20,7 @@ RUN apt update \
  && rm -rf /var/lib/apt/lists/*
 
  # Install dependencies
+COPY simple_grasping/package.xml ${ROS_WS}/src/simple_grasping/package.xml
 COPY simple_grasping_interfaces/package.xml ${ROS_WS}/src/simple_grasping_interfaces/package.xml 
 RUN apt update \
  && rosdep update \
@@ -28,6 +29,7 @@ RUN apt update \
 
 # Build
 WORKDIR ${ROS_WS}
+COPY simple_grasping ${ROS_WS}/src/simple_grasping
 COPY simple_grasping_interfaces ${ROS_WS}/src/simple_grasping_interfaces
 RUN source /opt/ros/$ROS_DISTRO/setup.bash \
  && colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release

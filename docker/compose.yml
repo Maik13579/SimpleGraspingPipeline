@@ -12,4 +12,4 @@ services:
     ipc: host
     privileged: true
     stdin_open: true
-    command: tail -f /dev/null
+    command: ros2 launch simple_grasping simple_grasping.launch.py input_cloud_topic:=/head_front_camera/depth_registered/points
