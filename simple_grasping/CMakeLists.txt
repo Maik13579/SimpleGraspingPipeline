@@ -14,6 +14,7 @@ find_package(pcl_conversions REQUIRED)
 find_package(pcl_ros REQUIRED)
 find_package(PCL REQUIRED COMPONENTS common io filters kdtree search segmentation)
 find_package(tf2_ros REQUIRED)
+find_package(tf2_sensor_msgs REQUIRED)
 find_package(tf2_eigen REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(OpenMP REQUIRED)
@@ -48,6 +49,7 @@ ament_target_dependencies(simple_grasping_node
   pcl_conversions
   pcl_ros
   tf2_ros
+  tf2_sensor_msgs
   tf2_eigen
   geometry_msgs
 )
