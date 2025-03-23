@@ -40,5 +40,12 @@ services:
           width_adjustment: -0.05" 
 
           sleep 3
+
           ros2 action send_goal /simple_grasping/simple_grasp simple_grasping_interfaces/action/SimpleGrasp "object_index: 0
-          disable_top_grasp: true" 
+          disable_top_grasp: true
+          num_grasps_selected: 5
+          approach_direction:
+            x: 1.0
+            y: 0.0
+            z: 0.0
+          thresh_rad: 0.4" 

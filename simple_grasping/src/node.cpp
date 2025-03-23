@@ -28,6 +28,15 @@ SimpleGraspingNode::SimpleGraspingNode(const rclcpp::NodeOptions &options)
   // Load GPD
   grasp_detector_ = std::make_unique<gpd::GraspDetector>(config_.common.gpd_cfg_file);
 
+  // disable plotting (breaks gpd currentlly)
+  grasp_detector_->plot_normals_ = false;
+  grasp_detector_->plot_samples_= false;
+  grasp_detector_->plot_candidates_= false;
+  grasp_detector_->plot_filtered_candidates_= false;
+  grasp_detector_->plot_valid_grasps_= false;
+  grasp_detector_->plot_clustered_grasps_= false;
+  grasp_detector_->plot_selected_grasps_= false;
+
   // Initialize TF2 buffer and listener for cloud transformation
   tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
   tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
@@ -281,15 +290,13 @@ void SimpleGraspingNode::execute_simple_grasp(const std::shared_ptr<GoalHandleSi
   // Add grid-based plane cloud from the supporting plane
   if (selected_obj.plane_index < static_cast<int>(planes_.size())) {
     const Plane &plane = planes_[selected_obj.plane_index];
-    double grid_res = 0.01; // Grid resolution in meters
+    double grid_res = 0.025; // Grid resolution in meters
     double dx = plane.obb.max_pt.x - plane.obb.min_pt.x;
     double dy = plane.obb.max_pt.y - plane.obb.min_pt.y;
-    double half_dx = dx / 2.0;
-    double half_dy = dy / 2.0;
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr plane_cloud(new pcl::PointCloud<pcl::PointXYZ>());
-    for (double x = -half_dx; x <= half_dx; x += grid_res) {
-      for (double y = -half_dy; y <= half_dy; y += grid_res) {
+    for (double x = -dx; x <= dx; x += grid_res) {
+      for (double y = -dy; y <= dy; y += grid_res) {
         Eigen::Vector3f local_point(static_cast<float>(x), static_cast<float>(y), 0.0f);
         Eigen::Vector3f global_point = plane.obb.center.getVector3fMap() + plane.obb.rotation * local_point;
         pcl::PointXYZ pt;
@@ -342,6 +349,29 @@ void SimpleGraspingNode::execute_simple_grasp(const std::shared_ptr<GoalHandleSi
   camera_source_ = Eigen::MatrixXi::Ones(1, combined_cloud_rgb_->size());
   gpd_cloud_ = std::make_shared<gpd::util::Cloud>(combined_cloud_rgb_, camera_source_, view_points_);
   gpd_cloud_->setSampleIndices(selected_obj_indices);
+ 
+  // Update approach direction 
+  // Use the provided approach_direction if non-zero, otherwise default to (1,0,0).
+  Eigen::Vector3f action_approach(goal->approach_direction.x,
+    goal->approach_direction.y,
+    goal->approach_direction.z);
+  if (action_approach.norm() < 1e-6) {
+    action_approach = Eigen::Vector3f(1.0f, 0.0f, 0.0f);
+  }
+  // Transform the action approach direction into the object frame.
+  Eigen::Vector3f new_direction = R_inv * action_approach;
+  grasp_detector_->direction_ = new_direction.cast<double>();
+
+  // Update approach direction filtering:
+  // If thresh_rad is 0.0, disable filtering; otherwise, enable it and set the threshold.
+  if (std::abs(goal->thresh_rad) < 1e-6) {
+    grasp_detector_->filter_approach_direction_ = false;
+  } else {
+    grasp_detector_->filter_approach_direction_ = true;
+    grasp_detector_->thresh_rad_ = goal->thresh_rad;
+  }
+
+  grasp_detector_->num_selected_ = goal->num_grasps_selected;
 
   grasp_detector_->preprocessPointCloud(*gpd_cloud_);
   if (gpd_cloud_->getCloudProcessed()->empty() || gpd_cloud_->getSampleIndices().empty()) {

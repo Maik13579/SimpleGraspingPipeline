@@ -26,6 +26,9 @@ RUN apt update && apt install -y \
     libopencv-dev \
  && rm -rf /var/lib/apt/lists/*
 COPY gpd /opt/gpd
+# Make all member variables public to overwrite them later
+# Ugly ^^ but works
+RUN sed -i '/^[[:space:]]*private:/d' /opt/gpd/include/gpd/grasp_detector.h
 WORKDIR /opt/gpd
 RUN mkdir build && cd build && \
     cmake .. && make -j4

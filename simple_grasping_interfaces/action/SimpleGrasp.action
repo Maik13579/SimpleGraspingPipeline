@@ -2,6 +2,14 @@
 # Then choose a object to grasp
 int32 object_index #index of object to grasp
 bool disable_top_grasp
+
+int32 num_grasps_selected #number of selected grasps (sorted by score)
+
+# Filtering of candidates based on their approach direction
+# direction to compare against
+geometry_msgs/Point approach_direction # 1/0/0 by default
+# angle in radians above which grasps are filtered
+float32 thresh_rad #disable if 0.0
 ---
 
 # Result
