@@ -1,7 +1,13 @@
 # You have to run SimplePerception first to populate objects
 # Then choose a object to grasp
 int32 object_index #index of object to grasp
-bool disable_top_grasp
+
+
+bool disable_top_grasp #copies plane cloud above the object
+# so GPD thinks there is a ceiling
+
+float32 min_distance_to_plane #minimum distance the gripper should have to the plane
+# internally the plane is offsetted by this value (so GPD thinks the plane is higher)
 
 int32 num_grasps_selected #number of selected grasps (sorted by score)
 

@@ -43,6 +43,7 @@ services:
 
           ros2 action send_goal /simple_grasping/simple_grasp simple_grasping_interfaces/action/SimpleGrasp "object_index: 0
           disable_top_grasp: true
+          min_distance_to_plane: 0.03
           num_grasps_selected: 5
           approach_direction:
             x: 1.0

@@ -308,6 +308,17 @@ void SimpleGraspingNode::execute_simple_grasp(const std::shared_ptr<GoalHandleSi
     }
     *combined_cloud += *plane_cloud;
 
+    // Create a copy of the plane and move it up by min_distance_to_plane
+    if (goal->min_distance_to_plane > 0.0){
+      pcl::PointCloud<pcl::PointXYZ>::Ptr plane_cloud_above(new pcl::PointCloud<pcl::PointXYZ>());
+      for (const auto &pt : plane_cloud->points) {
+        pcl::PointXYZ pt_above = pt;
+        pt_above.z += goal->min_distance_to_plane;
+        plane_cloud_above->points.push_back(pt_above);
+      }
+      *combined_cloud += *plane_cloud_above;
+    }
+
     // If disable_top_grasp is true, add an upward copy of the plane cloud.
     if (goal->disable_top_grasp) {
       pcl::PointCloud<pcl::PointXYZ>::Ptr plane_cloud_above(new pcl::PointCloud<pcl::PointXYZ>());
