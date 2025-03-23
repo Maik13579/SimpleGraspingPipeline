@@ -28,6 +28,6 @@ services:
             x: 0.0
             y: 0.0
             z: 0.0
-          sort_planes_by_height: false
-          height_above_plane: 0.0
-          width_adjustment: 0.0" 
+          sort_planes_by_height: true
+          height_above_plane: 0.35
+          width_adjustment: -0.05" 

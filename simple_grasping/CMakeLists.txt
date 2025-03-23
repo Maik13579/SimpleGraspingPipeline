@@ -27,6 +27,7 @@ add_executable(simple_grasping_node
   src/params.cpp
   src/filters.cpp
   src/plane_detector.cpp
+  src/object_detector.cpp
 )
 
 # Add include directories

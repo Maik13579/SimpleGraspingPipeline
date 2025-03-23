@@ -4,6 +4,7 @@
 #include "params.hpp"
 #include "filters.hpp"
 #include "plane_detector.hpp"
+#include "object_detector.hpp"
 
 #include <simple_grasping_interfaces/action/simple_perception.hpp>
 #include <rclcpp/rclcpp.hpp>

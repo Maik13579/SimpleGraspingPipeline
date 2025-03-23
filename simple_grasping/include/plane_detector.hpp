@@ -19,6 +19,7 @@ struct OBB {
 struct Plane {
   pcl::PointCloud<pcl::PointXYZ>::Ptr inliers;
   OBB obb;
+  OBB aoi;
   float a, b, c, d;  // Plane equation coefficients
 };
 

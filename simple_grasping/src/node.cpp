@@ -2,6 +2,7 @@
 #include "params.hpp"
 #include "filters.hpp"
 #include "plane_detector.hpp"
+#include "object_detector.hpp"
 
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
@@ -92,6 +93,7 @@ void SimpleGraspingNode::execute_simple_perception(const std::shared_ptr<GoalHan
   pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZ>());
   pcl::fromROSMsg(transformed_cloud, *pcl_cloud);
 
+  /////////////////////////////////////////////////////////
   // Apply filtering to the PCL cloud
   pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud = filters::filter_cloud(pcl_cloud, config_.filter);
 
@@ -104,7 +106,8 @@ void SimpleGraspingNode::execute_simple_perception(const std::shared_ptr<GoalHan
     debug_pub_->publish(filtered_msg);
   }
 
-  // Detect planes using the plane detector
+  /////////////////////////////////////////////////////////
+  // Detect planes
   std::vector<Plane> planes = plane_detector::detect_planes(filtered_cloud, config_.plane_detection, config_.common.n_threads);
 
   // Sort planes based on goal criteria:
@@ -133,7 +136,7 @@ void SimpleGraspingNode::execute_simple_perception(const std::shared_ptr<GoalHan
     simple_grasping_interfaces::msg::Plane plane_msg;
     
     // Convert plane inlier cloud to ROS message
-    pcl::toROSMsg(*planes[i].inliers, plane_msg.cloud);
+    //pcl::toROSMsg(*planes[i].inliers, plane_msg.cloud);
     plane_msg.cloud.header.frame_id = config_.common.frame_id;
     plane_msg.cloud.header.stamp = latest_cloud_->header.stamp;
 
@@ -150,7 +153,7 @@ void SimpleGraspingNode::execute_simple_perception(const std::shared_ptr<GoalHan
     result->planes.push_back(plane_msg);
   }
 
-  // Publish debug markers 
+  // Publish debug markers for planes
   if (config_.common.debug && debug_pub_markers_) {
     visualization_msgs::msg::MarkerArray marker_array;
     for (const auto &plane_msg : result->planes) {
@@ -159,8 +162,67 @@ void SimpleGraspingNode::execute_simple_perception(const std::shared_ptr<GoalHan
     debug_pub_markers_->publish(marker_array);
   }
 
+  /////////////////////////////////////////////////////////
+  // Object detection:
+  // Use additional goal parameters: height_above_plane and width_adjustment
+  float height_above_plane = (goal->height_above_plane > 0.0f) ? goal->height_above_plane : 0.3f;
+  std::vector<Object> objects = object_detector::detect_objects(
+    filtered_cloud, planes, config_.object_detection,
+    height_above_plane, goal->width_adjustment, config_.common.n_threads
+  );
+
+  // Sort objects by Euclidean distance from goal->querry_point
+  std::sort(objects.begin(), objects.end(),
+    [goal](const Object &a, const Object &b) {
+      float da = std::sqrt(std::pow(a.obb.center.x - goal->querry_point.x, 2) +
+                           std::pow(a.obb.center.y - goal->querry_point.y, 2) +
+                           std::pow(a.obb.center.z - goal->querry_point.z, 2));
+      float db = std::sqrt(std::pow(b.obb.center.x - goal->querry_point.x, 2) +
+                           std::pow(b.obb.center.y - goal->querry_point.y, 2) +
+                           std::pow(b.obb.center.z - goal->querry_point.z, 2));
+      return da < db;
+    });
+
+  // Fill object results in the action message
+  for (size_t i = 0; i < objects.size(); ++i) {
+    simple_grasping_interfaces::msg::Object obj_msg;
+    
+    // Convert object inlier cloud to ROS message
+    //pcl::toROSMsg(*objects[i].cloud, obj_msg.cloud);
+    obj_msg.cloud.header.frame_id = config_.common.frame_id;
+    obj_msg.cloud.header.stamp = latest_cloud_->header.stamp;
+    
+    // Create marker for the object OBB (red color)
+    obj_msg.obb = createMarkerFromOBB(objects[i].obb, "objects", static_cast<int>(i), 1.0f, 0.0f, 0.0f, 0.8f);
+    
+    // Store the index of the plane on which the object is detected
+    obj_msg.plane_index = objects[i].plane_index;
+    
+    result->objects.push_back(obj_msg);
+  }
+
+  // Publish AOI markers (in cyan)
+  if (config_.common.debug && debug_pub_markers_) {
+    visualization_msgs::msg::MarkerArray aoi_marker_array;
+    for (size_t i = 0; i < planes.size(); ++i) {
+      auto marker = createMarkerFromOBB(planes[i].aoi, "aois", static_cast<int>(i),
+                                        0.0f, 1.0f, 1.0f, 0.2f); // Hell cyan with low alpha
+      aoi_marker_array.markers.push_back(marker);
+    }
+    debug_pub_markers_->publish(aoi_marker_array);
+  }
+
+  // Publish debug markers for objects
+  if (config_.common.debug && debug_pub_markers_) {
+    visualization_msgs::msg::MarkerArray obj_marker_array;
+    for (const auto &obj_msg : result->objects) {
+      obj_marker_array.markers.push_back(obj_msg.obb);
+    }
+    debug_pub_markers_->publish(obj_marker_array);
+  }
+
   result->success = true;
-  result->message = "Point cloud processed: transformed, filtered, and plane detection completed";
+  result->message = "Point cloud processed: transformed, filtered, and object detection completed";
   goal_handle->succeed(result);
 }
 
