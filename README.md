@@ -79,8 +79,8 @@ Generates grasp candidates for a selected object using GPD. This service perform
   The number of top grasp candidates (sorted by score) to return.
 - `geometry_msgs/Point approach_direction`  
   The desired approach direction for the grasp candidates (default is (1, 0, 0) if not provided).
-- `float32 thresh_rad`  
-  The angular threshold (in radians) for filtering grasp candidates based on their approach direction.  
+- `float32 thresh_deg`  
+  The angular threshold (in degree) for filtering grasp candidates based on their approach direction.  
   A value of 0 disables filtering.
 - `float32 pre_grasp_dist`  
   The distance along the approach direction from the grasp pose to compute the pre-grasp pose.

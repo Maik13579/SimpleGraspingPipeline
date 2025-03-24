@@ -371,11 +371,11 @@ void SimpleGraspingNode::handleGenerateGrasps(
   Eigen::Vector3f new_direction = R_inv * action_approach;
   grasp_detector_->direction_ = new_direction.cast<double>();
 
-  if (std::abs(request->thresh_rad) < 1e-6) {
+  if (std::abs(request->thresh_deg) < 1e-6) {
     grasp_detector_->filter_approach_direction_ = false;
   } else {
     grasp_detector_->filter_approach_direction_ = true;
-    grasp_detector_->thresh_rad_ = request->thresh_rad;
+    grasp_detector_->thresh_rad_ = request->thresh_deg * 0.0174532925f; // Pi/180
   }
 
   grasp_detector_->num_selected_ = request->num_grasps_selected;
