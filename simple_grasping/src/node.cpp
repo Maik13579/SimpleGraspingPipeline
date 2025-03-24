@@ -436,11 +436,6 @@ void SimpleGraspingNode::handleGenerateGrasps(
     for (const auto &g : grasps) {
       double normalized_score = (g->getScore() - min_score) / (max_score - min_score + 1e-6);
       
-      const auto &hand_geometry = grasp_detector_->getHandSearchParameters().hand_geometry_;
-
-      // Create local hand markers in object frame
-      auto local_markers = utils::createHandMarker(marker_id, hand_geometry);
-
       // Compute grasp frame as an affine transform
       Eigen::Matrix3f R_grasp = g->getFrame().cast<float>();
       Eigen::Vector3f t_grasp = g->getPosition().cast<float>();
@@ -449,14 +444,14 @@ void SimpleGraspingNode::handleGenerateGrasps(
       // Compose transforms: local → grasp → global
       Eigen::Affine3f T_global = T_obj_inv * T_grasp;
 
-      // Transform to global frame
-      auto global_markers = utils::transformMarkerArray(local_markers, T_global);
+      // Transform hand_markers to global frame
+      auto global_markers = utils::transformMarkerArray(hand_, T_global);
 
       // Set frame ID and color
       for (auto &marker : global_markers.markers) {
         marker.header.frame_id = config_.common.frame_id;
         marker.header.stamp = now();
-        marker.color.r = static_cast<float>(1.0 - normalizeffd_score);
+        marker.color.r = static_cast<float>(1.0 - normalized_score);
         marker.color.g = static_cast<float>(normalized_score);
         marker.color.b = 0.0f;
         marker.color.a = static_cast<float>(normalized_score);
