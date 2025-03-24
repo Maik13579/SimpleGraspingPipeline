@@ -1,6 +1,6 @@
 # Simple Grasping Pipeline
 
-This ROS2 package implements a perception and grasp planning pipeline using GPD.  
+This ROS2 package implements a perception and grasp planning pipeline using [GPD](https://github.com/atenpas/gpd/tree/master).  
 The pipeline processes an input point cloud to detect planes and objects, then generates grasp candidates based on the detected scene.
 
 ## Services
