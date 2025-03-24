@@ -54,6 +54,11 @@ SimpleGraspingNode::SimpleGraspingNode(const rclcpp::NodeOptions &options)
     std::bind(&SimpleGraspingNode::sensor_callback, this, _1)
   );
 
+  // Publisher for best grasp
+  grasp_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>("~/grasp", 10);
+  pre_grasp_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>("~/pre_grasp", 10);
+  retreat_grasp_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>("~/retreat_grasp", 10);
+
   // Create service servers instead of action servers.
   perception_srv_ = this->create_service<simple_grasping_interfaces::srv::StartPerception>(
     "~/start_perception",
@@ -222,25 +227,25 @@ void SimpleGraspingNode::handleStartPerception(
 }
 
 
-
 void SimpleGraspingNode::handleGenerateGrasps(
   const std::shared_ptr<simple_grasping_interfaces::srv::GenerateGrasps::Request> request,
   std::shared_ptr<simple_grasping_interfaces::srv::GenerateGrasps::Response> response)
 {
   auto start_time = std::chrono::steady_clock::now();
+
   if (request->object_index < 0 || request->object_index >= static_cast<int>(objects_.size())) {
     response->success = false;
     response->message = "Invalid object index";
     return;
   }
 
-  // shortcut to selected object
+  // Shortcut to selected object.
   const Object &selected_obj = objects_[request->object_index];
   pcl::PointCloud<pcl::PointXYZ>::Ptr combined_cloud(new pcl::PointCloud<pcl::PointXYZ>());
   int idx_counter = 0;
   std::vector<int> selected_obj_indices;
 
-  // Generate combine cloud from all objects on the same plane as selected
+  // Generate combined cloud from all objects on the same plane as selected.
   for (size_t i = 0; i < objects_.size(); ++i) {
     if (objects_[i].plane_index == selected_obj.plane_index) {
       // Choose cloud pointer: sample from OBB if requested, otherwise use the object's cloud.
@@ -256,7 +261,7 @@ void SimpleGraspingNode::handleGenerateGrasps(
     }
   }
   
-  // Add syntetic plane cloud from the supporting plane.
+  // Add synthetic plane cloud from the supporting plane.
   if (selected_obj.plane_index < static_cast<int>(planes_.size())) {
     const Plane &plane = planes_[selected_obj.plane_index];
     double grid_res = 0.01; // Grid resolution in meters
@@ -276,7 +281,7 @@ void SimpleGraspingNode::handleGenerateGrasps(
     }
     *combined_cloud += *plane_cloud;
 
-    // Offset the plane by min_distance_to_plane.
+    // Offset the plane cloud by min_distance_to_plane.
     if (request->min_distance_to_plane > 0.0) {
       pcl::PointCloud<pcl::PointXYZ>::Ptr plane_cloud_above(new pcl::PointCloud<pcl::PointXYZ>());
       for (const auto &pt : plane_cloud->points) {
@@ -308,30 +313,34 @@ void SimpleGraspingNode::handleGenerateGrasps(
     debug_pub_->publish(debug_msg);
   }
 
-  // Transform the combined cloud into the object frame.
+  // Compute the transformation T that maps points from global (common.frame_id)
+  // into the object coordinate frame.
   Eigen::Matrix3f R_inv = selected_obj.obb.rotation.transpose();
-  Eigen::Vector3f obj_center(selected_obj.obb.center.x, selected_obj.obb.center.y, selected_obj.obb.center.z);
-  // Create transformation T that maps points from common.frame_id into the object frame.
+  Eigen::Vector3f obj_center(selected_obj.obb.center.x,
+                              selected_obj.obb.center.y,
+                              selected_obj.obb.center.z);
   Eigen::Affine3f T = Eigen::Affine3f(Eigen::Translation3f(-R_inv * obj_center) * R_inv);
+
+  // Transform the combined cloud into the object frame.
   pcl::transformPointCloud(*combined_cloud, *combined_cloud, T);
 
-  combined_cloud_rgb_ = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>());
+  combined_cloud_rgb_ = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(
+      new pcl::PointCloud<pcl::PointXYZRGBA>());
   pcl::copyPointCloud(*combined_cloud, *combined_cloud_rgb_);
 
-  // Lookup sensor origin in common.frame_id.
+  // Lookup sensor origin in common.frame_id and transform it into object coordinates.
   geometry_msgs::msg::TransformStamped sensor_to_target = tf_buffer_->lookupTransform(
       config_.common.frame_id, latest_cloud_->header.frame_id, rclcpp::Time(0), rclcpp::Duration(1, 0));
   Eigen::Vector3f sensor_origin(
       sensor_to_target.transform.translation.x,
       sensor_to_target.transform.translation.y,
-      sensor_to_target.transform.translation.z
-  );
-
-  // Transform the sensor origin into object coordinates.
+      sensor_to_target.transform.translation.z);
   Eigen::Vector3f transformed_sensor_origin = T * sensor_origin;
 
   view_points_.resize(3, 1);
-  view_points_ << transformed_sensor_origin.x(), transformed_sensor_origin.y(), transformed_sensor_origin.z();
+  view_points_ << transformed_sensor_origin.x(),
+                  transformed_sensor_origin.y(),
+                  transformed_sensor_origin.z();
 
   camera_source_ = Eigen::MatrixXi::Ones(1, combined_cloud_rgb_->size());
   gpd_cloud_ = std::make_shared<gpd::util::Cloud>(combined_cloud_rgb_, camera_source_, view_points_);
@@ -372,7 +381,9 @@ void SimpleGraspingNode::handleGenerateGrasps(
   // Publish grasp markers in debug mode.
   if (config_.common.debug && debug_pub_markers_) {
     Eigen::Matrix3f R_obj = selected_obj.obb.rotation;
-    Eigen::Vector3f center(selected_obj.obb.center.x, selected_obj.obb.center.y, selected_obj.obb.center.z);
+    Eigen::Vector3f center(selected_obj.obb.center.x,
+                           selected_obj.obb.center.y,
+                           selected_obj.obb.center.z);
     Eigen::Affine3f T_obj_inv(Eigen::Translation3f(center) * R_obj);
     visualization_msgs::msg::MarkerArray all_grasp_markers;
     int marker_id = 0;
@@ -386,15 +397,84 @@ void SimpleGraspingNode::handleGenerateGrasps(
     debug_pub_markers_->publish(all_grasp_markers);
   }
 
+  // Compute pre_grasp, grasp, and retreat poses for each candidate.
+  // For the supporting plane, use its normal.
+  Plane supporting_plane = planes_[selected_obj.plane_index];
+  Eigen::Vector3f plane_normal(supporting_plane.a, supporting_plane.b, supporting_plane.c);
+  plane_normal.normalize();
+
+  std::vector<simple_grasping_interfaces::msg::Grasp> grasp_msgs;
+  bool published = false;
+  for (const auto &grasp : grasps) {
+    // Candidate position (in object coordinates)
+    Eigen::Vector3f grasp_obj = grasp->getPosition().cast<float>();
+
+    // Transform candidate position back to global coordinates.
+    Eigen::Vector3f grasp_global = T.inverse() * grasp_obj;
+
+    // Candidate rotation (hand frame) in object coordinates.
+    Eigen::Matrix3f candidate_rot_obj = grasp->getFrame().cast<float>();
+    // Transform rotation to global coordinates.
+    Eigen::Matrix3f candidate_rot_global = T.inverse().linear() * candidate_rot_obj;
+    Eigen::Quaternionf quat_global(candidate_rot_global);
+
+    // Create the grasp pose.
+    geometry_msgs::msg::PoseStamped grasp_pose;
+    grasp_pose.header.frame_id = config_.common.frame_id;
+    grasp_pose.header.stamp = this->now();
+    grasp_pose.pose.position.x = grasp_global.x();
+    grasp_pose.pose.position.y = grasp_global.y();
+    grasp_pose.pose.position.z = grasp_global.z();
+    grasp_pose.pose.orientation.x = quat_global.x();
+    grasp_pose.pose.orientation.y = quat_global.y();
+    grasp_pose.pose.orientation.z = quat_global.z();
+    grasp_pose.pose.orientation.w = quat_global.w();
+
+    // Pre-grasp: offset from the grasp along the negative approach direction.
+    Eigen::Vector3f approach_obj = grasp->getApproach().cast<float>().normalized();
+    Eigen::Vector3f pre_grasp_obj = grasp_obj - request->pre_grasp_dist * approach_obj;
+    Eigen::Vector3f pre_grasp_global = T.inverse() * pre_grasp_obj;
+    geometry_msgs::msg::PoseStamped pre_grasp_pose;
+    pre_grasp_pose.header = grasp_pose.header;
+    pre_grasp_pose.pose.position.x = pre_grasp_global.x();
+    pre_grasp_pose.pose.position.y = pre_grasp_global.y();
+    pre_grasp_pose.pose.position.z = pre_grasp_global.z();
+    pre_grasp_pose.pose.orientation = grasp_pose.pose.orientation;
+
+    // Retreat: offset from the grasp along the plane normal in global coordinates.
+    Eigen::Vector3f retreat_global = grasp_global + request->retreat_dist * plane_normal;
+    geometry_msgs::msg::PoseStamped retreat_pose;
+    retreat_pose.header = grasp_pose.header;
+    retreat_pose.pose.position.x = retreat_global.x();
+    retreat_pose.pose.position.y = retreat_global.y();
+    retreat_pose.pose.position.z = retreat_global.z();
+    retreat_pose.pose.orientation = grasp_pose.pose.orientation;
+
+    // Populate Grasp message.
+    simple_grasping_interfaces::msg::Grasp grasp_msg;
+    grasp_msg.pre_grasp = pre_grasp_pose;
+    grasp_msg.grasp = grasp_pose;
+    grasp_msg.retreat = retreat_pose;
+    grasp_msg.score = grasp->getScore();
+
+    grasp_msgs.push_back(grasp_msg);
+
+    // Publish the best grasp (only once).
+    if (!published) {
+      grasp_pub_->publish(grasp_pose);
+      pre_grasp_pub_->publish(pre_grasp_pose);
+      retreat_grasp_pub_->publish(retreat_pose);
+      published = true;
+    }
+  }
+
+  response->grasps = grasp_msgs;
   response->success = true;
-  response->message = "Grasps detected";
+  response->message = "";
   auto end_time = std::chrono::steady_clock::now();
   auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
   RCLCPP_INFO(this->get_logger(), "Grasp generation took %ld ms", elapsed);
 }
-
-
-
 
 
 

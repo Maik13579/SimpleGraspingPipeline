@@ -12,6 +12,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/buffer.h>
 
@@ -39,6 +40,10 @@ private:
 
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr debug_pub_;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr debug_pub_markers_;
+
+  rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr grasp_pub_;
+  rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pre_grasp_pub_;
+  rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr retreat_grasp_pub_;
 
   void sensor_callback(const sensor_msgs::msg::PointCloud2::SharedPtr msg);
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_;

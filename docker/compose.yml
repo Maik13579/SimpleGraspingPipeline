@@ -49,4 +49,6 @@ services:
             x: 1.0
             y: 0.0
             z: 0.0
-          thresh_rad: 1.0" 
+          thresh_rad: 1.0
+          pre_grasp_dist: 0.15
+          retreat_dist: 0.05" 

@@ -18,8 +18,14 @@ int32 num_grasps_selected #number of selected grasps (sorted by score)
 geometry_msgs/Point approach_direction # 1/0/0 by default
 # angle in radians above which grasps are filtered
 float32 thresh_rad #disable if 0.0
+
+
+float32 pre_grasp_dist #distance from pre_grasp to grasp in approach direction
+float32 retreat_dist #distance in plane normal direction to retreat after grasp
 ---
 
 # Response
 bool success
 string message
+
+Grasp[] grasps

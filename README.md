@@ -44,35 +44,54 @@ Processes the latest input point cloud to perform perception tasks. Specifically
 
 ### GenerateGrasps.srv
 **Purpose:**  
-Generates grasp candidates for a selected object using GPD. This service:
-- Combines point cloud data from all objects on the same plane as the selected object.
-- Offers two sampling modes:
-  - **Sensor cloud mode:** Uses the original perception cloud.
-  - **OBB sampling mode:** Samples the cloud directly from each object’s oriented bounding box.
-- Optionally augments the combined cloud with synthetic plane points to simulate environmental constraints (e.g., a ceiling) by offsetting the plane cloud.
-- Transforms the combined cloud (and the sensor origin) into the object coordinate frame.
-- Sets the grasp detector’s approach direction and angular threshold for filtering candidates.
-- Generates grasp candidates using the GPD library.
+Generates grasp candidates for a selected object using GPD. This service performs the following steps:
+- **Cloud Sampling:**  
+  Combines point cloud data from all objects on the same plane as the selected object.  
+  It supports two sampling modes:
+  - **Sensor Cloud Mode:** Uses the original perception cloud.
+  - **OBB Sampling Mode:** Samples the point cloud directly from each object’s oriented bounding box (OBB), so that GPD will try to grasp the bounding box.
+- **Synthetic Plane Augmentation:**  
+  Optionally augments the combined cloud with synthetic plane points to simulate environmental constraints (e.g., a ceiling).  
+  The plane cloud can be offset vertically by `min_distance_to_plane` and further duplicated if `disable_top_grasp` is true.
+- **Coordinate Transformation:**  
+  Transforms the combined cloud and the sensor origin into the object coordinate frame.
+- **Grasp Generation and Filtering:**  
+  Sets the grasp detector’s approach direction and angular threshold for filtering candidates.  
+  The approach direction is taken from the service request (defaulting to (1, 0, 0) if not provided).
+- **Pre-grasp and Retreat Poses:**  
+  For each grasp candidate, computes:
+  - A **pre_grasp** pose by offsetting the grasp pose along the approach direction by `pre_grasp_dist`.
+  - A **retreat** pose by offsetting the grasp pose along the supporting plane’s normal by `retreat_dist`.
+- **Candidate Selection:**  
+  Generates a list of grasp candidates, selects the top candidates by score (as specified by `num_grasps_selected`), and returns the complete grasp information.
 
 **Request Options:**
 - `int32 object_index`  
   Index of the object to grasp.
 - `bool sample_cloud_from_obb`  
-  If true, samples the cloud from each object's OBB instead of using the sensor cloud.
+  If true, samples the point cloud from each object's OBB instead of using the sensor cloud.
 - `bool disable_top_grasp`  
   If true, adds an additional upward copy of the plane cloud so that GPD “sees” a ceiling.
 - `float32 min_distance_to_plane`  
   The minimum distance the gripper should maintain from the plane.  
-  This value offsets the plane cloud vertically.
+  This value vertically offsets the plane cloud.
 - `int32 num_grasps_selected`  
   The number of top grasp candidates (sorted by score) to return.
 - `geometry_msgs/Point approach_direction`  
-  The desired approach direction for grasp candidates.  
-  Defaults to (1, 0, 0) if not provided.
+  The desired approach direction for the grasp candidates (default is (1, 0, 0) if not provided).
 - `float32 thresh_rad`  
   The angular threshold (in radians) for filtering grasp candidates based on their approach direction.  
-  A value of 0 disables this filtering.
+  A value of 0 disables filtering.
+- `float32 pre_grasp_dist`  
+  The distance along the approach direction from the grasp pose to compute the pre-grasp pose.
+- `float32 retreat_dist`  
+  The distance along the plane’s normal from the grasp pose to compute the retreat pose.
 
 **Response:**
 - `bool success` – True if grasp generation succeeded.
 - `string message` – Additional status information.
+- `Grasp[] grasps` – An array of grasp candidates. Each `Grasp` message includes:
+  - `geometry_msgs/PoseStamped pre_grasp` – The pre-grasp pose.
+  - `geometry_msgs/PoseStamped grasp` – The actual grasp pose.
+  - `geometry_msgs/PoseStamped retreat` – The retreat pose.
+  - `float64 score` – The quality score of the grasp candidate.

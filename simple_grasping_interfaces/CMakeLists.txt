@@ -12,6 +12,7 @@ find_package(visualization_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 
 set(msg_files
+    "msg/Grasp.msg"
     "msg/Object.msg"
     "msg/Plane.msg"
 )
