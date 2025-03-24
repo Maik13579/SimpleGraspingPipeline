@@ -3,6 +3,8 @@
 This ROS2 package implements a perception and grasp planning pipeline using GPD.  
 It processes sensor point clouds to detect planes and objects, and then generates grasp candidates for a selected object.
 
+![](imgs/tiago_sim.png)
+
 ## Services
 
 ### StartPerception.srv
@@ -74,14 +76,3 @@ Generates grasp candidates for a selected object using GPD. This service:
 **Response:**
 - `bool success` – True if grasp generation succeeded.
 - `string message` – Additional status information.
-
----
-
-## Visualization
-
-The pipeline publishes markers for visualization (if debug mode is enabled):
-- **Plane markers:** Blue
-- **Object markers:** Red
-- **Generated grasp markers:** Green
-
-An example output is shown in [imgs/tiago_sim.png](imgs/tiago_sim.png).
