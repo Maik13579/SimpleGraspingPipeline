@@ -67,6 +67,7 @@ private:
     const gpd::candidate::Hand &grasp,
     int id,
     const std::string &frame_id,
+    double score,
     const Eigen::Affine3f &T_obj_inv);
 };
 

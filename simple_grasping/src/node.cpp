@@ -380,6 +380,19 @@ void SimpleGraspingNode::handleGenerateGrasps(
 
   // Publish grasp markers in debug mode.
   if (config_.common.debug && debug_pub_markers_) {
+    // Normalize score to [0, 1]. 
+    double min_score = std::numeric_limits<float>::max();
+    double max_score = std::numeric_limits<float>::min();
+    for (int i = 0; i < grasps.size(); i++) {
+      if (grasps[i]->getScore() < min_score) {
+        min_score = grasps[i]->getScore();
+      }
+      if (grasps[i]->getScore() > max_score) {
+        max_score = grasps[i]->getScore();
+      }
+    }
+
+    // Get Transform back to global frame
     Eigen::Matrix3f R_obj = selected_obj.obb.rotation;
     Eigen::Vector3f center(selected_obj.obb.center.x,
                            selected_obj.obb.center.y,
@@ -387,8 +400,11 @@ void SimpleGraspingNode::handleGenerateGrasps(
     Eigen::Affine3f T_obj_inv(Eigen::Translation3f(center) * R_obj);
     visualization_msgs::msg::MarkerArray all_grasp_markers;
     int marker_id = 0;
+
+    // Genrate markers
     for (const auto &grasp : grasps) {
-      auto markers = createGraspMarker(*grasp, marker_id, config_.common.frame_id, T_obj_inv);
+      double normalized_score = (grasp->getScore() - min_score) / (max_score - min_score);
+      auto markers = createGraspMarker(*grasp, marker_id, config_.common.frame_id, normalized_score, T_obj_inv);
       for (const auto &m : markers.markers) {
         marker_id++; // increment marker id
         all_grasp_markers.markers.push_back(m);
@@ -576,6 +592,7 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr SimpleGraspingNode::createPointCloudFromOBB(
     const gpd::candidate::Hand &grasp,
     int id,
     const std::string &frame_id,
+    double score,
     const Eigen::Affine3f &T_obj_inv)
   {
     
@@ -689,11 +706,9 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr SimpleGraspingNode::createPointCloudFromOBB(
     visualization_msgs::msg::Marker approach_marker = createFingerMarker(approach_center, global_hand_frame, approach_lwh, id + 2);
     visualization_msgs::msg::Marker base_marker = createBaseMarker(left_bottom, right_bottom, global_hand_frame, 0.02, hand_height, id + 3);
   
-    // Set color based on grasp confidence (assume grasp.getScore() returns a value in [0,1])
-    double conf = grasp.getScore();
-    auto setColor = [conf](visualization_msgs::msg::Marker &m) {
-      m.color.r = 1.0 - conf;  // lower confidence -> more red
-      m.color.g = conf;        // higher confidence -> more green
+    auto setColor = [score](visualization_msgs::msg::Marker &m) {
+      m.color.r = 1.0 - score;  // lower confidence -> more red
+      m.color.g = score;        // higher confidence -> more green
       m.color.b = 0.0;
       m.color.a = 0.5;
     };
