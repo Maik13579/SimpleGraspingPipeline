@@ -16,14 +16,14 @@ set(msg_files
     "msg/Plane.msg"
 )
 
-set(action_files
-    "action/SimpleGrasp.action"
-    "action/SimplePerception.action"
+set(service_files
+    "srv/StartPerception.srv"
+    "srv/GenerateGrasps.srv"
 )
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   ${msg_files}
-  ${action_files}
+  ${service_files}
   DEPENDENCIES geometry_msgs visualization_msgs sensor_msgs
 )
 ament_export_dependencies(rosidl_default_runtime)

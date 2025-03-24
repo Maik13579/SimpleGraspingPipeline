@@ -12,21 +12,15 @@ bool sort_planes_by_height #if true, sort planes by height (lowest to highest)
 float32 height_above_plane #height above a plane to search for objects #defauts to 0.3m
 float32 width_adjustment # negative: shrink plane bb by x meters, positive: expand plane bb by x meters
 
+
+bool return_cloud #if true inlier cloud of objects and planes will be returned too
+
 ---
-# Result
+
+# Response
 bool success
 string message
 
 Plane[] planes
 Object[] objects
 
----
-# Feedback
-int32 state
-
-int32 FILTERING=0 #initial state where point cloud is filtered
-int32 NORMAL_ESTIMATION=1 #normal vector estimation
-int32 PLANE_DETECTION=2 #plane detection
-int32 PLANE_REFINEMENT=3 #plane refinement using RANSAC
-int32 PLANE_FILTERING=4 #plane filtering
-int32 OBJECT_DETECTION=5 #object detection

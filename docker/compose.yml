@@ -31,17 +31,18 @@ services:
       - -c
       - |
           sleep 2
-          ros2 action send_goal /simple_grasping/simple_perception simple_grasping_interfaces/action/SimplePerception "querry_point:
+          ros2 service call /simple_grasping/start_perception simple_grasping_interfaces/srv/StartPerception "querry_point:
             x: 0.0
             y: 0.0
             z: 0.0
           sort_planes_by_height: true
           height_above_plane: 0.35
-          width_adjustment: -0.05" 
+          width_adjustment: -0.05
+          return_cloud: false" 
 
           sleep 3
 
-          ros2 action send_goal /simple_grasping/simple_grasp simple_grasping_interfaces/action/SimpleGrasp "object_index: 0
+          ros2 service call /simple_grasping/generate_grasps simple_grasping_interfaces/srv/GenerateGrasps "object_index: 0
           disable_top_grasp: true
           min_distance_to_plane: 0.03
           num_grasps_selected: 5
@@ -49,4 +50,4 @@ services:
             x: 1.0
             y: 0.0
             z: 0.0
-          thresh_rad: 0.4" 
+          thresh_rad: 2.0" 

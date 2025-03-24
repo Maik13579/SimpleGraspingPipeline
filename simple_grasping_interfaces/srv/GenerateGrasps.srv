@@ -1,7 +1,9 @@
-# You have to run SimplePerception first to populate objects
+# You have to run Perception first to populate objects
 # Then choose a object to grasp
 int32 object_index #index of object to grasp
 
+bool sample_cloud_from_obb #if true, generate a pointcloud from the obbs instead of using the sensor cloud
+# So GDP will try to grasp the bounding box
 
 bool disable_top_grasp #copies plane cloud above the object
 # so GPD thinks there is a ceiling
@@ -18,10 +20,6 @@ geometry_msgs/Point approach_direction # 1/0/0 by default
 float32 thresh_rad #disable if 0.0
 ---
 
-# Result
+# Response
 bool success
 string message
-
----
-# Feedback
-

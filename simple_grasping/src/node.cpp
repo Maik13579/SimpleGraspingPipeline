@@ -54,29 +54,15 @@ SimpleGraspingNode::SimpleGraspingNode(const rclcpp::NodeOptions &options)
     std::bind(&SimpleGraspingNode::sensor_callback, this, _1)
   );
 
-  // Create the action server
-  perception_action_server_ = rclcpp_action::create_server<SimplePerception>(
-    this,
-    "~/simple_perception",
-    [this](const auto &, const auto &) -> rclcpp_action::GoalResponse {
-      return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
-    },
-    [this](const auto &) -> rclcpp_action::CancelResponse {
-      return rclcpp_action::CancelResponse::ACCEPT;
-    },
-    std::bind(&SimpleGraspingNode::execute_simple_perception, this, _1)
+  // Create service servers instead of action servers.
+  perception_srv_ = this->create_service<simple_grasping_interfaces::srv::StartPerception>(
+    "~/start_perception",
+    std::bind(&SimpleGraspingNode::handleStartPerception, this, std::placeholders::_1, std::placeholders::_2)
   );
 
-  grasp_action_server_ = rclcpp_action::create_server<SimpleGrasp>(
-    this,
-    "~/simple_grasp",
-    [this](const auto &, const auto &) -> rclcpp_action::GoalResponse {
-      return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
-    },
-    [this](const auto &) -> rclcpp_action::CancelResponse {
-      return rclcpp_action::CancelResponse::ACCEPT;
-    },
-    std::bind(&SimpleGraspingNode::execute_simple_grasp, this, _1)
+  grasp_srv_ = this->create_service<simple_grasping_interfaces::srv::GenerateGrasps>(
+    "~/generate_grasps",
+    std::bind(&SimpleGraspingNode::handleGenerateGrasps, this, std::placeholders::_1, std::placeholders::_2)
   );
 }
 
@@ -85,20 +71,19 @@ void SimpleGraspingNode::sensor_callback(const sensor_msgs::msg::PointCloud2::Sh
   latest_cloud_ = msg;
 }
 
-void SimpleGraspingNode::execute_simple_perception(const std::shared_ptr<GoalHandleSimplePerception> goal_handle)
+void SimpleGraspingNode::handleStartPerception(
+  const std::shared_ptr<simple_grasping_interfaces::srv::StartPerception::Request> request,
+  std::shared_ptr<simple_grasping_interfaces::srv::StartPerception::Response> response)
 {
-  // Retrieve goal to use in sorting criteria
-  auto goal = goal_handle->get_goal();
-  auto result = std::make_shared<SimplePerception::Result>();
+  auto start_time = std::chrono::steady_clock::now();
 
   if (!latest_cloud_) {
-    result->success = false;
-    result->message = "No point cloud available";
-    goal_handle->abort(result);
+    response->success = false;
+    response->message = "No point cloud available";
     return;
   }
 
-  // Transform the latest cloud to the target frame (config_.common.frame_id)
+  // Transform the latest cloud to the target frame.
   sensor_msgs::msg::PointCloud2 transformed_cloud;
   geometry_msgs::msg::TransformStamped transformStamped;
   try {
@@ -106,25 +91,22 @@ void SimpleGraspingNode::execute_simple_perception(const std::shared_ptr<GoalHan
       config_.common.frame_id,
       latest_cloud_->header.frame_id,
       rclcpp::Time(0),
-      rclcpp::Duration(1, 0)  // (seconds, nanoseconds)
+      rclcpp::Duration(1, 0)
     );
     tf2::doTransform(*latest_cloud_, transformed_cloud, transformStamped);
   } catch (tf2::TransformException &ex) {
-    result->success = false;
-    result->message = std::string("TF2 transform error: ") + ex.what();
-    goal_handle->abort(result);
+    response->success = false;
+    response->message = std::string("TF2 transform error: ") + ex.what();
     return;
   }
 
-  // Convert transformed ROS point cloud to PCL format
+  // Convert ROS cloud to PCL format.
   pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZ>());
   pcl::fromROSMsg(transformed_cloud, *pcl_cloud);
 
-  /////////////////////////////////////////////////////////
-  // Apply filtering to the PCL cloud
+  // Filter the cloud.
   pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud = filters::filter_cloud(pcl_cloud, config_.filter);
 
-  // Publish the filtered cloud if debug is enabled
   if (config_.common.debug && debug_pub_) {
     sensor_msgs::msg::PointCloud2 filtered_msg;
     pcl::toROSMsg(*filtered_cloud, filtered_msg);
@@ -133,167 +115,153 @@ void SimpleGraspingNode::execute_simple_perception(const std::shared_ptr<GoalHan
     debug_pub_->publish(filtered_msg);
   }
 
-  /////////////////////////////////////////////////////////
-  // Detect planes
+  // Detect planes.
   std::vector<Plane> planes = plane_detector::detect_planes(filtered_cloud, config_.plane_detection, config_.common.n_threads);
 
-  // Sort planes based on goal criteria:
-  // If sort_planes_by_height is true, sort by plane center's z (lowest first),
-  // else sort by Euclidean distance from goal->querry_point.
-  if (goal->sort_planes_by_height) {
+  // Sort planes.
+  if (request->sort_planes_by_height) { //By height
     std::sort(planes.begin(), planes.end(),
       [](const Plane &a, const Plane &b) {
         return a.obb.center.z < b.obb.center.z;
       });
-  } else {
+  } else { // By Distance to querry point
     std::sort(planes.begin(), planes.end(),
-      [goal](const Plane &a, const Plane &b) {
-        float da = std::sqrt(std::pow(a.obb.center.x - goal->querry_point.x, 2) +
-                             std::pow(a.obb.center.y - goal->querry_point.y, 2) +
-                             std::pow(a.obb.center.z - goal->querry_point.z, 2));
-        float db = std::sqrt(std::pow(b.obb.center.x - goal->querry_point.x, 2) +
-                             std::pow(b.obb.center.y - goal->querry_point.y, 2) +
-                             std::pow(b.obb.center.z - goal->querry_point.z, 2));
+      [request](const Plane &a, const Plane &b) {
+        float da = std::sqrt(std::pow(a.obb.center.x - request->querry_point.x, 2) +
+                             std::pow(a.obb.center.y - request->querry_point.y, 2) +
+                             std::pow(a.obb.center.z - request->querry_point.z, 2));
+        float db = std::sqrt(std::pow(b.obb.center.x - request->querry_point.x, 2) +
+                             std::pow(b.obb.center.y - request->querry_point.y, 2) +
+                             std::pow(b.obb.center.z - request->querry_point.z, 2));
         return da < db;
       });
   }
 
-  // Convert each detected plane to the action result message format
+  // Convert planes to result message format.
   for (size_t i = 0; i < planes.size(); ++i) {
     simple_grasping_interfaces::msg::Plane plane_msg;
-    
-    // Convert plane inlier cloud to ROS message
-    //pcl::toROSMsg(*planes[i].inliers, plane_msg.cloud);
+    if (request->return_cloud && planes[i].inliers)
+      pcl::toROSMsg(*(planes[i].inliers), plane_msg.cloud);
     plane_msg.cloud.header.frame_id = config_.common.frame_id;
     plane_msg.cloud.header.stamp = latest_cloud_->header.stamp;
-
-    // Create marker for the plane OBB (blue color)
-    auto marker = createMarkerFromOBB(planes[i].obb, "planes", static_cast<int>(i), 0.0f, 0.0f, 1.0f, 0.8f);
-    plane_msg.obb = marker;
-
-    // Copy plane equation coefficients
+    plane_msg.obb = createMarkerFromOBB(planes[i].obb, "planes", static_cast<int>(i), 0.0f, 0.0f, 1.0f, 0.8f);
     plane_msg.a = planes[i].a;
     plane_msg.b = planes[i].b;
     plane_msg.c = planes[i].c;
     plane_msg.d = planes[i].d;
-
-    result->planes.push_back(plane_msg);
+    response->planes.push_back(plane_msg);
   }
 
-  // Publish debug markers for planes
+  // Publish debug markers for planes.
   if (config_.common.debug && debug_pub_markers_) {
     visualization_msgs::msg::MarkerArray marker_array;
-    for (const auto &plane_msg : result->planes) {
+    for (const auto &plane_msg : response->planes) {
       marker_array.markers.push_back(plane_msg.obb);
     }
     debug_pub_markers_->publish(marker_array);
   }
 
-  /////////////////////////////////////////////////////////
-  // Object detection:
-  // Use additional goal parameters: height_above_plane and width_adjustment
-  float height_above_plane = (goal->height_above_plane > 0.0f) ? goal->height_above_plane : 0.3f;
+  // Object detection using additional parameters.
+  float height_above_plane = (request->height_above_plane > 0.0f) ? request->height_above_plane : 0.3f;
   std::vector<Object> objects = object_detector::detect_objects(
     filtered_cloud, planes, config_.object_detection,
-    height_above_plane, goal->width_adjustment, config_.common.n_threads
+    height_above_plane, request->width_adjustment, config_.common.n_threads
   );
 
-  // Sort objects by Euclidean distance from goal->querry_point
+  // Sort objects by distance to querry point
   std::sort(objects.begin(), objects.end(),
-    [goal](const Object &a, const Object &b) {
-      float da = std::sqrt(std::pow(a.obb.center.x - goal->querry_point.x, 2) +
-                           std::pow(a.obb.center.y - goal->querry_point.y, 2) +
-                           std::pow(a.obb.center.z - goal->querry_point.z, 2));
-      float db = std::sqrt(std::pow(b.obb.center.x - goal->querry_point.x, 2) +
-                           std::pow(b.obb.center.y - goal->querry_point.y, 2) +
-                           std::pow(b.obb.center.z - goal->querry_point.z, 2));
+    [request](const Object &a, const Object &b) {
+      float da = std::sqrt(std::pow(a.obb.center.x - request->querry_point.x, 2) +
+                           std::pow(a.obb.center.y - request->querry_point.y, 2) +
+                           std::pow(a.obb.center.z - request->querry_point.z, 2));
+      float db = std::sqrt(std::pow(b.obb.center.x - request->querry_point.x, 2) +
+                           std::pow(b.obb.center.y - request->querry_point.y, 2) +
+                           std::pow(b.obb.center.z - request->querry_point.z, 2));
       return da < db;
     });
 
-  // Fill object results in the action message
+  // Convert objects to response message format.
   for (size_t i = 0; i < objects.size(); ++i) {
     simple_grasping_interfaces::msg::Object obj_msg;
-    
-    // Convert object inlier cloud to ROS message
-    //pcl::toROSMsg(*objects[i].cloud, obj_msg.cloud);
+    if (request->return_cloud && objects[i].cloud)
+      pcl::toROSMsg(*(objects[i].cloud), obj_msg.cloud);
     obj_msg.cloud.header.frame_id = config_.common.frame_id;
     obj_msg.cloud.header.stamp = latest_cloud_->header.stamp;
-    
-    // Create marker for the object OBB (red color)
     obj_msg.obb = createMarkerFromOBB(objects[i].obb, "objects", static_cast<int>(i), 1.0f, 0.0f, 0.0f, 0.8f);
-    
-    // Store the index of the plane on which the object is detected
     obj_msg.plane_index = objects[i].plane_index;
-    
-    result->objects.push_back(obj_msg);
+    response->objects.push_back(obj_msg);
   }
 
-  // Publish AOI markers (in cyan)
+  // Publish AOI and object markers if debug enabled.
   if (config_.common.debug && debug_pub_markers_) {
     visualization_msgs::msg::MarkerArray aoi_marker_array;
     for (size_t i = 0; i < planes.size(); ++i) {
       auto marker = createMarkerFromOBB(planes[i].aoi, "aois", static_cast<int>(i),
-                                        0.0f, 1.0f, 1.0f, 0.2f); // Hell cyan with low alpha
+                                        0.0f, 1.0f, 1.0f, 0.2f);
       aoi_marker_array.markers.push_back(marker);
     }
     debug_pub_markers_->publish(aoi_marker_array);
-  }
 
-  // Publish debug markers for objects
-  if (config_.common.debug && debug_pub_markers_) {
     visualization_msgs::msg::MarkerArray obj_marker_array;
-    for (const auto &obj_msg : result->objects) {
+    for (const auto &obj_msg : response->objects) {
       obj_marker_array.markers.push_back(obj_msg.obb);
     }
     debug_pub_markers_->publish(obj_marker_array);
   }
 
-  // Store planes and objects
+  // Store planes and objects.
   planes_ = planes;
   objects_ = objects;
 
-  result->success = true;
-  result->message = "Point cloud processed: transformed, filtered, and object detection completed";
-  goal_handle->succeed(result);
+  response->success = true;
+  response->message = "";
+
+  auto end_time = std::chrono::steady_clock::now();
+  auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+  RCLCPP_INFO(this->get_logger(), "Perception took %ld ms", elapsed);
 }
 
 
-void SimpleGraspingNode::execute_simple_grasp(const std::shared_ptr<GoalHandleSimpleGrasp> goal_handle)
-{
-  auto goal = goal_handle->get_goal();
-  auto result = std::make_shared<SimpleGrasp::Result>();
 
-  if (goal->object_index < 0 || goal->object_index >= static_cast<int>(objects_.size())) {
-    result->success = false;
-    result->message = "Invalid object index";
-    goal_handle->abort(result);
+void SimpleGraspingNode::handleGenerateGrasps(
+  const std::shared_ptr<simple_grasping_interfaces::srv::GenerateGrasps::Request> request,
+  std::shared_ptr<simple_grasping_interfaces::srv::GenerateGrasps::Response> response)
+{
+  auto start_time = std::chrono::steady_clock::now();
+  if (request->object_index < 0 || request->object_index >= static_cast<int>(objects_.size())) {
+    response->success = false;
+    response->message = "Invalid object index";
     return;
   }
 
-  const Object &selected_obj = objects_[goal->object_index];
+  // shortcut to selected object
+  const Object &selected_obj = objects_[request->object_index];
   pcl::PointCloud<pcl::PointXYZ>::Ptr combined_cloud(new pcl::PointCloud<pcl::PointXYZ>());
   int idx_counter = 0;
   std::vector<int> selected_obj_indices;
 
-  // Add object clouds
+  // Generate combine cloud from all objects on the same plane as selected
   for (size_t i = 0; i < objects_.size(); ++i) {
-    if (objects_[i].plane_index == selected_obj.plane_index && objects_[i].cloud) {
-      if (static_cast<int>(i) == goal->object_index) {
-        for (size_t pt = 0; pt < objects_[i].cloud->points.size(); ++pt)
-          selected_obj_indices.push_back(idx_counter + pt);
+    if (objects_[i].plane_index == selected_obj.plane_index) {
+      // Choose cloud pointer: sample from OBB if requested, otherwise use the object's cloud.
+      auto cur_cloud = request->sample_cloud_from_obb ? createPointCloudFromOBB(objects_[i].obb, 0.01f) : objects_[i].cloud;
+      if (cur_cloud) {
+        if (static_cast<int>(i) == request->object_index) {
+          for (size_t pt = 0; pt < cur_cloud->points.size(); ++pt)
+            selected_obj_indices.push_back(idx_counter + pt);
+        }
+        idx_counter += cur_cloud->points.size();
+        *combined_cloud += *cur_cloud;
       }
-      idx_counter += objects_[i].cloud->points.size();
-      *combined_cloud += *(objects_[i].cloud);
     }
   }
-
-  // Add grid-based plane cloud from the supporting plane
+  
+  // Add syntetic plane cloud from the supporting plane.
   if (selected_obj.plane_index < static_cast<int>(planes_.size())) {
     const Plane &plane = planes_[selected_obj.plane_index];
-    double grid_res = 0.025; // Grid resolution in meters
+    double grid_res = 0.01; // Grid resolution in meters
     double dx = plane.obb.max_pt.x - plane.obb.min_pt.x;
     double dy = plane.obb.max_pt.y - plane.obb.min_pt.y;
-
     pcl::PointCloud<pcl::PointXYZ>::Ptr plane_cloud(new pcl::PointCloud<pcl::PointXYZ>());
     for (double x = -dx; x <= dx; x += grid_res) {
       for (double y = -dy; y <= dy; y += grid_res) {
@@ -308,30 +276,30 @@ void SimpleGraspingNode::execute_simple_grasp(const std::shared_ptr<GoalHandleSi
     }
     *combined_cloud += *plane_cloud;
 
-    // Create a copy of the plane and move it up by min_distance_to_plane
-    if (goal->min_distance_to_plane > 0.0){
+    // Offset the plane by min_distance_to_plane.
+    if (request->min_distance_to_plane > 0.0) {
       pcl::PointCloud<pcl::PointXYZ>::Ptr plane_cloud_above(new pcl::PointCloud<pcl::PointXYZ>());
       for (const auto &pt : plane_cloud->points) {
         pcl::PointXYZ pt_above = pt;
-        pt_above.z += goal->min_distance_to_plane;
+        pt_above.z += request->min_distance_to_plane;
         plane_cloud_above->points.push_back(pt_above);
       }
       *combined_cloud += *plane_cloud_above;
     }
 
-    // If disable_top_grasp is true, add an upward copy of the plane cloud.
-    if (goal->disable_top_grasp) {
-      pcl::PointCloud<pcl::PointXYZ>::Ptr plane_cloud_above(new pcl::PointCloud<pcl::PointXYZ>());
+    // If disable_top_grasp is true, add an additional upward copy of the plane cloud.
+    if (request->disable_top_grasp) {
+      pcl::PointCloud<pcl::PointXYZ>::Ptr plane_cloud_top(new pcl::PointCloud<pcl::PointXYZ>());
       for (const auto &pt : plane_cloud->points) {
-        pcl::PointXYZ pt_above = pt;
-        pt_above.z += (selected_obj.obb.max_pt.z - selected_obj.obb.min_pt.z);
-        plane_cloud_above->points.push_back(pt_above);
+        pcl::PointXYZ pt_top = pt;
+        pt_top.z += (selected_obj.obb.max_pt.z - selected_obj.obb.min_pt.z);
+        plane_cloud_top->points.push_back(pt_top);
       }
-      *combined_cloud += *plane_cloud_above;
+      *combined_cloud += *plane_cloud_top;
     }
   }
 
-  // Publish combined cloud
+  // Publish the combined cloud if debug is enabled.
   if (config_.common.debug && debug_pub_) {
     sensor_msgs::msg::PointCloud2 debug_msg;
     pcl::toROSMsg(*combined_cloud, debug_msg);
@@ -340,62 +308,68 @@ void SimpleGraspingNode::execute_simple_grasp(const std::shared_ptr<GoalHandleSi
     debug_pub_->publish(debug_msg);
   }
 
-  // Transform the combined cloud into the object frame
+  // Transform the combined cloud into the object frame.
   Eigen::Matrix3f R_inv = selected_obj.obb.rotation.transpose();
-  Eigen::Vector3f center(selected_obj.obb.center.x, selected_obj.obb.center.y, selected_obj.obb.center.z);
-  pcl::transformPointCloud(*combined_cloud, *combined_cloud,
-                           Eigen::Affine3f(Eigen::Translation3f(-R_inv * center) * R_inv));
+  Eigen::Vector3f obj_center(selected_obj.obb.center.x, selected_obj.obb.center.y, selected_obj.obb.center.z);
+  // Create transformation T that maps points from common.frame_id into the object frame.
+  Eigen::Affine3f T = Eigen::Affine3f(Eigen::Translation3f(-R_inv * obj_center) * R_inv);
+  pcl::transformPointCloud(*combined_cloud, *combined_cloud, T);
 
   combined_cloud_rgb_ = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>());
   pcl::copyPointCloud(*combined_cloud, *combined_cloud_rgb_);
 
+  // Lookup sensor origin in common.frame_id.
   geometry_msgs::msg::TransformStamped sensor_to_target = tf_buffer_->lookupTransform(
       config_.common.frame_id, latest_cloud_->header.frame_id, rclcpp::Time(0), rclcpp::Duration(1, 0));
+  Eigen::Vector3f sensor_origin(
+      sensor_to_target.transform.translation.x,
+      sensor_to_target.transform.translation.y,
+      sensor_to_target.transform.translation.z
+  );
+
+  // Transform the sensor origin into object coordinates.
+  Eigen::Vector3f transformed_sensor_origin = T * sensor_origin;
 
   view_points_.resize(3, 1);
-  view_points_ << sensor_to_target.transform.translation.x,
-                  sensor_to_target.transform.translation.y,
-                  sensor_to_target.transform.translation.z;
+  view_points_ << transformed_sensor_origin.x(), transformed_sensor_origin.y(), transformed_sensor_origin.z();
 
   camera_source_ = Eigen::MatrixXi::Ones(1, combined_cloud_rgb_->size());
   gpd_cloud_ = std::make_shared<gpd::util::Cloud>(combined_cloud_rgb_, camera_source_, view_points_);
   gpd_cloud_->setSampleIndices(selected_obj_indices);
- 
-  // Update approach direction 
-  // Use the provided approach_direction if non-zero, otherwise default to (1,0,0).
-  Eigen::Vector3f action_approach(goal->approach_direction.x,
-    goal->approach_direction.y,
-    goal->approach_direction.z);
+
+  // Update approach direction using the service request.
+  Eigen::Vector3f action_approach(request->approach_direction.x,
+                                  request->approach_direction.y,
+                                  request->approach_direction.z);
   if (action_approach.norm() < 1e-6) {
     action_approach = Eigen::Vector3f(1.0f, 0.0f, 0.0f);
   }
-  // Transform the action approach direction into the object frame.
   Eigen::Vector3f new_direction = R_inv * action_approach;
   grasp_detector_->direction_ = new_direction.cast<double>();
 
-  // Update approach direction filtering:
-  // If thresh_rad is 0.0, disable filtering; otherwise, enable it and set the threshold.
-  if (std::abs(goal->thresh_rad) < 1e-6) {
+  // Update filtering based on thresh_rad.
+  if (std::abs(request->thresh_rad) < 1e-6) {
     grasp_detector_->filter_approach_direction_ = false;
   } else {
     grasp_detector_->filter_approach_direction_ = true;
-    grasp_detector_->thresh_rad_ = goal->thresh_rad;
+    grasp_detector_->thresh_rad_ = request->thresh_rad;
   }
 
-  grasp_detector_->num_selected_ = goal->num_grasps_selected;
+  grasp_detector_->num_selected_ = request->num_grasps_selected;
 
+  // Preprocess the point cloud.
   grasp_detector_->preprocessPointCloud(*gpd_cloud_);
   if (gpd_cloud_->getCloudProcessed()->empty() || gpd_cloud_->getSampleIndices().empty()) {
-    result->success = false;
-    result->message = "Preprocessed cloud or indices empty!";
-    goal_handle->abort(result);
+    response->success = false;
+    response->message = "Preprocessed cloud or indices empty!";
     return;
   }
 
+  // Detect grasps with GPD.
   auto grasps = grasp_detector_->detectGrasps(*gpd_cloud_);
   RCLCPP_INFO(get_logger(), "Detected %zu grasps from GPD.", grasps.size());
 
-  // Publish grasps
+  // Publish grasp markers in debug mode.
   if (config_.common.debug && debug_pub_markers_) {
     Eigen::Matrix3f R_obj = selected_obj.obb.rotation;
     Eigen::Vector3f center(selected_obj.obb.center.x, selected_obj.obb.center.y, selected_obj.obb.center.z);
@@ -404,21 +378,29 @@ void SimpleGraspingNode::execute_simple_grasp(const std::shared_ptr<GoalHandleSi
     int marker_id = 0;
     for (const auto &grasp : grasps) {
       auto markers = createGraspMarker(*grasp, marker_id, config_.common.frame_id, T_obj_inv);
-      for (const auto &m : markers.markers)
-      {
-        marker_id++; //increment marker id
+      for (const auto &m : markers.markers) {
+        marker_id++; // increment marker id
         all_grasp_markers.markers.push_back(m);
       }
     }
     debug_pub_markers_->publish(all_grasp_markers);
   }
 
-  result->success = true;
-  result->message = "Grasps detected";
-  goal_handle->succeed(result);
+  response->success = true;
+  response->message = "Grasps detected";
+  auto end_time = std::chrono::steady_clock::now();
+  auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+  RCLCPP_INFO(this->get_logger(), "Grasp generation took %ld ms", elapsed);
 }
 
 
+
+
+
+
+
+
+///////////////////////////////////////////////////////////////////////// Utility functions
 
 visualization_msgs::msg::Marker SimpleGraspingNode::createMarkerFromOBB(
     const OBB &obb,
@@ -457,12 +439,58 @@ visualization_msgs::msg::Marker SimpleGraspingNode::createMarkerFromOBB(
     marker.color.r = r;
     marker.color.g = g;
     marker.color.b = b;
-    marker.color.a = a;
-    
-    //marker.lifetime = rclcpp::Duration(10, 0);  // 10secs
-    
+    marker.color.a = a;    
     return marker;
   }
+
+
+pcl::PointCloud<pcl::PointXYZ>::Ptr SimpleGraspingNode::createPointCloudFromOBB(const OBB &obb, float resolution)
+{
+  // Create a new point cloud pointer
+  auto cloud = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>());
+
+  // Compute dimensions in the local (PCA) coordinate frame.
+  float dx = obb.max_pt.x - obb.min_pt.x;
+  float dy = obb.max_pt.y - obb.min_pt.y;
+  float dz = obb.max_pt.z - obb.min_pt.z;
+
+  // Compute the local center (midpoint) of the bounding box.
+  float mid_x = (obb.min_pt.x + obb.max_pt.x) / 2.0f;
+  float mid_y = (obb.min_pt.y + obb.max_pt.y) / 2.0f;
+  float mid_z = (obb.min_pt.z + obb.max_pt.z) / 2.0f;
+
+  // Determine the number of steps in each dimension based on the desired resolution.
+  int steps_x = std::max(1, static_cast<int>(dx / resolution));
+  int steps_y = std::max(1, static_cast<int>(dy / resolution));
+  int steps_z = std::max(1, static_cast<int>(dz / resolution));
+
+  // Loop over the local grid and compute each point's global coordinates.
+  for (int i = 0; i <= steps_x; i++) {
+    float ratio_x = static_cast<float>(i) / steps_x;
+    float local_x = obb.min_pt.x + ratio_x * dx;
+    for (int j = 0; j <= steps_y; j++) {
+      float ratio_y = static_cast<float>(j) / steps_y;
+      float local_y = obb.min_pt.y + ratio_y * dy;
+      for (int k = 0; k <= steps_z; k++) {
+        float ratio_z = static_cast<float>(k) / steps_z;
+        float local_z = obb.min_pt.z + ratio_z * dz;
+        Eigen::Vector3f local_point(local_x, local_y, local_z);
+        // Compute displacement from the local center.
+        Eigen::Vector3f disp = local_point - Eigen::Vector3f(mid_x, mid_y, mid_z);
+        // Transform displacement to global coordinates using the OBB rotation and add the global center.
+        Eigen::Vector3f global_point = obb.center.getVector3fMap() + obb.rotation * disp;
+        pcl::PointXYZ pt;
+        pt.x = global_point.x();
+        pt.y = global_point.y();
+        pt.z = global_point.z();
+        cloud->points.push_back(pt);
+      }
+    }
+  }
+
+  return cloud;
+}
+
 
   visualization_msgs::msg::MarkerArray SimpleGraspingNode::createGraspMarker(
     const gpd::candidate::Hand &grasp,
