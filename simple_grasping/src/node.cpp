@@ -472,6 +472,10 @@ void SimpleGraspingNode::handleGenerateGrasps(
     grasp_msg.grasp = grasp_pose;
     grasp_msg.retreat = retreat_pose;
     grasp_msg.score = grasp->getScore();
+    grasp_msg.is_full_antipodal = grasp->isFullAntipodal();
+    grasp_msg.is_half_antipodal = grasp->isHalfAntipodal();
+    grasp_msg.grasp_width = grasp->getGraspWidth();
+
 
     grasp_msgs.push_back(grasp_msg);
 

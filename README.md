@@ -95,3 +95,6 @@ Generates grasp candidates for a selected object using GPD. This service perform
   - `geometry_msgs/PoseStamped grasp` – The actual grasp pose.
   - `geometry_msgs/PoseStamped retreat` – The retreat pose.
   - `float64 score` – The quality score of the grasp candidate.
+  - `bool is_full_antipodal`- Whether the grasp is antipodal.
+  - `bool is_half_antipodal`- Whether the grasp is indeterminate.
+  - `float64 grasp_width`- Width of the object contained in the grasp
