@@ -25,6 +25,7 @@ T declare_and_get_parameter(const std::string &param_name, const T &default_valu
 struct CommonParams
 {
     std::string frame_id;
+    std::string grasp_frame_id;
     int n_threads;
     bool debug;
     std::string gpd_cfg_file;

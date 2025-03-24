@@ -1,6 +1,7 @@
 #ifndef SIMPLE_GRASPING_NODE_HPP
 #define SIMPLE_GRASPING_NODE_HPP
 
+#include "utils.hpp"
 #include "params.hpp"
 #include "filters.hpp"
 #include "plane_detector.hpp"
@@ -41,6 +42,10 @@ private:
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr grasp_pub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pre_grasp_pub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr retreat_grasp_pub_;
+
+  visualization_msgs::msg::MarkerArray hand_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr hand_pub_;
+
 
   void sensor_callback(const sensor_msgs::msg::PointCloud2::SharedPtr msg);
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_;

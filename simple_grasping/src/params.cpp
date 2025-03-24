@@ -4,6 +4,7 @@ void load_parameters(NodeConfig &config, rclcpp::Node *node)
 {
     // Common parameters
     config.common.frame_id = declare_and_get_parameter<std::string>("common.frame_id", "base_footprint", node, "common.frame_id");
+    config.common.grasp_frame_id = declare_and_get_parameter<std::string>("common.grasp_frame_id", "grasping_frame", node, "common.grasp_frame_id");
     config.common.n_threads = declare_and_get_parameter<int>("common.n_threads", 1, node, "common.n_threads");
     config.common.debug = declare_and_get_parameter<bool>("common.debug", false, node, "common.debug");
     config.common.gpd_cfg_file = declare_and_get_parameter<std::string>("common.gpd_cfg_file", "/gpd/cfg/ros_vino_params.cfg", node, "common.gpd_cfg_file");

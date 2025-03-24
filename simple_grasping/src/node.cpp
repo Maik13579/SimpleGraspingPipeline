@@ -1,4 +1,5 @@
 #include "node.hpp"
+#include "utils.hpp"
 #include "params.hpp"
 #include "filters.hpp"
 #include "plane_detector.hpp"
@@ -59,6 +60,14 @@ SimpleGraspingNode::SimpleGraspingNode(const rclcpp::NodeOptions &options)
   pre_grasp_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>("~/pre_grasp", 10);
   retreat_grasp_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>("~/retreat_grasp", 10);
 
+  // Hand Publisher and hand marker
+  hand_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("~/hand", 10);  
+  const auto &hand_geometry = grasp_detector_->getHandSearchParameters().hand_geometry_;
+  hand_ = utils::createHandMarker(0, hand_geometry);
+  for (auto &marker : hand_.markers) {
+    marker.header.frame_id = config_.common.grasp_frame_id;
+  }
+
   // Create service servers instead of action servers.
   perception_srv_ = this->create_service<simple_grasping_interfaces::srv::StartPerception>(
     "~/start_perception",
@@ -74,6 +83,7 @@ SimpleGraspingNode::SimpleGraspingNode(const rclcpp::NodeOptions &options)
 void SimpleGraspingNode::sensor_callback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
 {
   latest_cloud_ = msg;
+  hand_pub_->publish(hand_);
 }
 
 void SimpleGraspingNode::handleStartPerception(
@@ -149,7 +159,9 @@ void SimpleGraspingNode::handleStartPerception(
       pcl::toROSMsg(*(planes[i].inliers), plane_msg.cloud);
     plane_msg.cloud.header.frame_id = config_.common.frame_id;
     plane_msg.cloud.header.stamp = latest_cloud_->header.stamp;
-    plane_msg.obb = createMarkerFromOBB(planes[i].obb, "planes", static_cast<int>(i), 0.0f, 0.0f, 1.0f, 0.8f);
+    plane_msg.obb = utils::createMarkerFromOBB(planes[i].obb, "planes", static_cast<int>(i), 0.0f, 0.0f, 1.0f, 0.8f);
+    plane_msg.obb.header.stamp = latest_cloud_->header.stamp;
+    plane_msg.obb.header.frame_id = config_.common.frame_id;
     plane_msg.a = planes[i].a;
     plane_msg.b = planes[i].b;
     plane_msg.c = planes[i].c;
@@ -192,7 +204,9 @@ void SimpleGraspingNode::handleStartPerception(
       pcl::toROSMsg(*(objects[i].cloud), obj_msg.cloud);
     obj_msg.cloud.header.frame_id = config_.common.frame_id;
     obj_msg.cloud.header.stamp = latest_cloud_->header.stamp;
-    obj_msg.obb = createMarkerFromOBB(objects[i].obb, "objects", static_cast<int>(i), 1.0f, 0.0f, 0.0f, 0.8f);
+    obj_msg.obb = utils::createMarkerFromOBB(objects[i].obb, "objects", static_cast<int>(i), 1.0f, 0.0f, 0.0f, 0.8f);
+    obj_msg.obb.header.stamp = latest_cloud_->header.stamp;
+    obj_msg.obb.header.frame_id = config_.common.frame_id;
     obj_msg.plane_index = objects[i].plane_index;
     response->objects.push_back(obj_msg);
   }
@@ -201,8 +215,10 @@ void SimpleGraspingNode::handleStartPerception(
   if (config_.common.debug && debug_pub_markers_) {
     visualization_msgs::msg::MarkerArray aoi_marker_array;
     for (size_t i = 0; i < planes.size(); ++i) {
-      auto marker = createMarkerFromOBB(planes[i].aoi, "aois", static_cast<int>(i),
+      auto marker = utils::createMarkerFromOBB(planes[i].aoi, "aois", static_cast<int>(i),
                                         0.0f, 1.0f, 1.0f, 0.2f);
+      marker.header.stamp = latest_cloud_->header.stamp;
+      marker.header.frame_id = config_.common.frame_id;
       aoi_marker_array.markers.push_back(marker);
     }
     debug_pub_markers_->publish(aoi_marker_array);
@@ -255,7 +271,7 @@ void SimpleGraspingNode::handleGenerateGrasps(
     if (objects_[i].plane_index == selected_obj.plane_index) {
       // Choose cloud pointer: sample from OBB if requested, otherwise use the object's cloud.
       auto cur_cloud = request->sample_cloud_from_obb ? 
-          createPointCloudFromOBB(objects_[i].obb, 0.01f) : objects_[i].cloud;
+          utils::createPointCloudFromOBB(objects_[i].obb, 0.01f) : objects_[i].cloud;
       if (cur_cloud) {
         if (static_cast<int>(i) == request->object_index) {
           for (size_t pt = 0; pt < cur_cloud->points.size(); ++pt)
@@ -350,7 +366,7 @@ void SimpleGraspingNode::handleGenerateGrasps(
 
   /////////////////////////////////////////////////////////////
   //
-  //  GDP SETUP
+  //  GPD SETUP
   //
   /////////////////////////////////////////////////////////////
   // Create a new Camera Source matrix.
@@ -403,22 +419,50 @@ void SimpleGraspingNode::handleGenerateGrasps(
     double max_score = std::numeric_limits<double>::lowest();
     for (const auto &g : grasps) {
       double s = g->getScore();
-      if (s < min_score) min_score = s;
-      if (s > max_score) max_score = s;
+      min_score = std::min(min_score, s);
+      max_score = std::max(max_score, s);
     }
+
+    // Object transformation (to map grasp from object frame to global)
     Eigen::Matrix3f R_obj = selected_obj.obb.rotation;
     Eigen::Vector3f center(selected_obj.obb.center.x,
-                           selected_obj.obb.center.y,
-                           selected_obj.obb.center.z);
+                          selected_obj.obb.center.y,
+                          selected_obj.obb.center.z);
     Eigen::Affine3f T_obj_inv(Eigen::Translation3f(center) * R_obj);
+
     visualization_msgs::msg::MarkerArray all_grasp_markers;
     int marker_id = 0;
+
     for (const auto &g : grasps) {
       double normalized_score = (g->getScore() - min_score) / (max_score - min_score + 1e-6);
-      auto markers = createGraspMarker(*g, marker_id, config_.common.frame_id, normalized_score, T_obj_inv);
-      for (const auto &m : markers.markers) {
-        marker_id++;
-        all_grasp_markers.markers.push_back(m);
+      
+      const auto &hand_geometry = grasp_detector_->getHandSearchParameters().hand_geometry_;
+
+      // Create local hand markers in object frame
+      auto local_markers = utils::createHandMarker(marker_id, hand_geometry);
+
+      // Compute grasp frame as an affine transform
+      Eigen::Matrix3f R_grasp = g->getFrame().cast<float>();
+      Eigen::Vector3f t_grasp = g->getPosition().cast<float>();
+      Eigen::Affine3f T_grasp = Eigen::Affine3f(Eigen::Translation3f(t_grasp) * R_grasp);
+
+      // Compose transforms: local → grasp → global
+      Eigen::Affine3f T_global = T_obj_inv * T_grasp;
+
+      // Transform to global frame
+      auto global_markers = utils::transformMarkerArray(local_markers, T_global);
+
+      // Set frame ID and color
+      for (auto &marker : global_markers.markers) {
+        marker.header.frame_id = config_.common.frame_id;
+        marker.header.stamp = now();
+        marker.color.r = static_cast<float>(1.0 - normalizeffd_score);
+        marker.color.g = static_cast<float>(normalized_score);
+        marker.color.b = 0.0f;
+        marker.color.a = static_cast<float>(normalized_score);
+        marker.id = marker_id++;
+
+        all_grasp_markers.markers.push_back(marker);
       }
     }
     debug_pub_markers_->publish(all_grasp_markers);
@@ -504,234 +548,3 @@ void SimpleGraspingNode::handleGenerateGrasps(
   auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
   RCLCPP_INFO(this->get_logger(), "Grasp generation took %ld ms", elapsed);
 }
-
-
-
-///////////////////////////////////////////////////////////////////////// Utility functions
-
-visualization_msgs::msg::Marker SimpleGraspingNode::createMarkerFromOBB(
-    const OBB &obb,
-    const std::string &ns,
-    int id,
-    float r, float g, float b, float a)
-  {
-    visualization_msgs::msg::Marker marker;
-    marker.header.frame_id = config_.common.frame_id;
-    marker.header.stamp = this->now();
-    marker.ns = ns;
-    marker.id = id;
-    marker.type = visualization_msgs::msg::Marker::CUBE;
-    marker.action = visualization_msgs::msg::Marker::ADD;
-    
-    // Use the min and max points from the OBB to define the scale (dimensions)
-    float dx = obb.max_pt.x - obb.min_pt.x;
-    float dy = obb.max_pt.y - obb.min_pt.y;
-    float dz = obb.max_pt.z - obb.min_pt.z;
-    marker.scale.x = dx;
-    marker.scale.y = dy;
-    marker.scale.z = dz;
-    
-    // Use the computed center in original frame for marker position.
-    marker.pose.position.x = obb.center.x;
-    marker.pose.position.y = obb.center.y;
-    marker.pose.position.z = obb.center.z;
-    
-    // Convert the rotation matrix to quaternion
-    Eigen::Quaternionf quat(obb.rotation);
-    marker.pose.orientation.x = quat.x();
-    marker.pose.orientation.y = quat.y();
-    marker.pose.orientation.z = quat.z();
-    marker.pose.orientation.w = quat.w();
-    
-    marker.color.r = r;
-    marker.color.g = g;
-    marker.color.b = b;
-    marker.color.a = a;    
-    return marker;
-  }
-
-
-pcl::PointCloud<pcl::PointXYZ>::Ptr SimpleGraspingNode::createPointCloudFromOBB(const OBB &obb, float resolution)
-{
-  // Create a new point cloud pointer
-  auto cloud = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>());
-
-  // Compute dimensions in the local (PCA) coordinate frame.
-  float dx = obb.max_pt.x - obb.min_pt.x;
-  float dy = obb.max_pt.y - obb.min_pt.y;
-  float dz = obb.max_pt.z - obb.min_pt.z;
-
-  // Compute the local center (midpoint) of the bounding box.
-  float mid_x = (obb.min_pt.x + obb.max_pt.x) / 2.0f;
-  float mid_y = (obb.min_pt.y + obb.max_pt.y) / 2.0f;
-  float mid_z = (obb.min_pt.z + obb.max_pt.z) / 2.0f;
-
-  // Determine the number of steps in each dimension based on the desired resolution.
-  int steps_x = std::max(1, static_cast<int>(dx / resolution));
-  int steps_y = std::max(1, static_cast<int>(dy / resolution));
-  int steps_z = std::max(1, static_cast<int>(dz / resolution));
-
-  // Loop over the local grid and compute each point's global coordinates.
-  for (int i = 0; i <= steps_x; i++) {
-    float ratio_x = static_cast<float>(i) / steps_x;
-    float local_x = obb.min_pt.x + ratio_x * dx;
-    for (int j = 0; j <= steps_y; j++) {
-      float ratio_y = static_cast<float>(j) / steps_y;
-      float local_y = obb.min_pt.y + ratio_y * dy;
-      for (int k = 0; k <= steps_z; k++) {
-        float ratio_z = static_cast<float>(k) / steps_z;
-        float local_z = obb.min_pt.z + ratio_z * dz;
-        Eigen::Vector3f local_point(local_x, local_y, local_z);
-        // Compute displacement from the local center.
-        Eigen::Vector3f disp = local_point - Eigen::Vector3f(mid_x, mid_y, mid_z);
-        // Transform displacement to global coordinates using the OBB rotation and add the global center.
-        Eigen::Vector3f global_point = obb.center.getVector3fMap() + obb.rotation * disp;
-        pcl::PointXYZ pt;
-        pt.x = global_point.x();
-        pt.y = global_point.y();
-        pt.z = global_point.z();
-        cloud->points.push_back(pt);
-      }
-    }
-  }
-
-  return cloud;
-}
-
-
-  visualization_msgs::msg::MarkerArray SimpleGraspingNode::createGraspMarker(
-    const gpd::candidate::Hand &grasp,
-    int id,
-    const std::string &frame_id,
-    double score,
-    const Eigen::Affine3f &T_obj_inv)
-  {
-    
-    // Get Hand geometry
-    auto hand_geometry = grasp_detector_->getHandSearchParameters().hand_geometry_;
-    double hand_depth = hand_geometry.depth_;
-    double hand_height = hand_geometry.height_;
-    double outer_diameter = hand_geometry.outer_diameter_;
-    double finger_width = hand_geometry.finger_width_;
-    double hw = 0.5 * outer_diameter - 0.5 * finger_width;  // half-width
-  
-    // Retrieve grasp candidate properties
-    Eigen::Vector3d pos_d = grasp.getPosition();
-    Eigen::Vector3d binormal_d = grasp.getBinormal();
-    Eigen::Vector3d approach_d = grasp.getApproach();
-    Eigen::Matrix3d hand_frame_d = grasp.getFrame();
-  
-    // Cast to float (to match our transform T_obj_inv)
-    Eigen::Vector3f pos = pos_d.cast<float>();
-    Eigen::Vector3f binormal = binormal_d.cast<float>();
-    Eigen::Vector3f approach = approach_d.cast<float>();
-    Eigen::Matrix3f hand_frame = hand_frame_d.cast<float>();
-  
-    // Compute key points in object frame
-    Eigen::Vector3f left_bottom_obj  = pos - hw * binormal;
-    Eigen::Vector3f right_bottom_obj = pos + hw * binormal;
-    Eigen::Vector3f left_top_obj     = left_bottom_obj + hand_depth * approach;
-    Eigen::Vector3f right_top_obj    = right_bottom_obj + hand_depth * approach;
-    Eigen::Vector3f left_center_obj  = left_bottom_obj + 0.5f * (left_top_obj - left_bottom_obj);
-    Eigen::Vector3f right_center_obj = right_bottom_obj + 0.5f * (right_top_obj - right_bottom_obj);
-    Eigen::Vector3f base_center_obj  = left_bottom_obj + 0.5f * (right_bottom_obj - left_bottom_obj) - 0.01f * approach;
-    Eigen::Vector3f approach_center_obj = base_center_obj - 0.04f * approach;
-  
-    // Define dimensions for markers (length, width, height)
-    Eigen::Vector3f finger_lwh; finger_lwh << hand_depth, finger_width, hand_height;
-    Eigen::Vector3f approach_lwh; approach_lwh << 0.08, finger_width, hand_height;
-  
-    // Transform key points from object frame to global frame using T_obj_inv
-    Eigen::Vector3f left_bottom  = T_obj_inv * left_bottom_obj;
-    Eigen::Vector3f right_bottom = T_obj_inv * right_bottom_obj;
-    Eigen::Vector3f left_center  = T_obj_inv * left_center_obj;
-    Eigen::Vector3f right_center = T_obj_inv * right_center_obj;
-    Eigen::Vector3f base_center  = T_obj_inv * base_center_obj;
-    Eigen::Vector3f approach_center = T_obj_inv * approach_center_obj;
-    // Transform the hand frame: global hand frame = rotation part of T_obj_inv * hand_frame.
-    Eigen::Matrix3f global_hand_frame = T_obj_inv.linear() * hand_frame;
-  
-    visualization_msgs::msg::MarkerArray marker_array;
-  
-    // Helper lambda: creates a cube marker for a finger or approach indicator.
-    auto createFingerMarker = [&](const Eigen::Vector3f &center,
-                                  const Eigen::Matrix3f &frame,
-                                  const Eigen::Vector3f &lwh,
-                                  int marker_id) -> visualization_msgs::msg::Marker {
-      visualization_msgs::msg::Marker marker;
-      marker.header.frame_id = frame_id;
-      marker.header.stamp = now();
-      marker.ns = "grasp";
-      marker.id = marker_id;
-      marker.type = visualization_msgs::msg::Marker::CUBE;
-      marker.action = visualization_msgs::msg::Marker::ADD;
-      marker.pose.position.x = center.x();
-      marker.pose.position.y = center.y();
-      marker.pose.position.z = center.z();
-      Eigen::Quaternionf quat(frame);
-      marker.pose.orientation.x = quat.x();
-      marker.pose.orientation.y = quat.y();
-      marker.pose.orientation.z = quat.z();
-      marker.pose.orientation.w = quat.w();
-      marker.scale.x = lwh.x();
-      marker.scale.y = lwh.y();
-      marker.scale.z = lwh.z();
-      // Color will be set later based on confidence.
-      marker.color.a = 0.5;
-      return marker;
-    };
-  
-    // Helper lambda: creates a base marker as a cube.
-    auto createBaseMarker = [&](const Eigen::Vector3f &start,
-                                const Eigen::Vector3f &end,
-                                const Eigen::Matrix3f &frame,
-                                float fixed_length,
-                                float height,
-                                int marker_id) -> visualization_msgs::msg::Marker {
-      Eigen::Vector3f center = start + 0.5f * (end - start);
-      visualization_msgs::msg::Marker marker;
-      marker.header.frame_id = frame_id;
-      marker.header.stamp = now();
-      marker.ns = "grasp";
-      marker.id = marker_id;
-      marker.type = visualization_msgs::msg::Marker::CUBE;
-      marker.action = visualization_msgs::msg::Marker::ADD;
-      marker.pose.position.x = center.x();
-      marker.pose.position.y = center.y();
-      marker.pose.position.z = center.z();
-      Eigen::Quaternionf quat(frame);
-      marker.pose.orientation.x = quat.x();
-      marker.pose.orientation.y = quat.y();
-      marker.pose.orientation.z = quat.z();
-      marker.pose.orientation.w = quat.w();
-      marker.scale.x = fixed_length;
-      marker.scale.y = (end - start).norm();
-      marker.scale.z = height;
-      marker.color.a = 0.5;
-      return marker;
-    };
-  
-    // Create markers in global frame.
-    visualization_msgs::msg::Marker left_finger = createFingerMarker(left_center, global_hand_frame, finger_lwh, id);
-    visualization_msgs::msg::Marker right_finger = createFingerMarker(right_center, global_hand_frame, finger_lwh, id + 1);
-    visualization_msgs::msg::Marker approach_marker = createFingerMarker(approach_center, global_hand_frame, approach_lwh, id + 2);
-    visualization_msgs::msg::Marker base_marker = createBaseMarker(left_bottom, right_bottom, global_hand_frame, 0.02, hand_height, id + 3);
-  
-    auto setColor = [score](visualization_msgs::msg::Marker &m) {
-      m.color.r = 1.0 - score;  // lower confidence -> more red
-      m.color.g = score;        // higher confidence -> more green
-      m.color.b = 0.0;
-      m.color.a = 0.5;
-    };
-    setColor(left_finger);
-    setColor(right_finger);
-    setColor(approach_marker);
-    setColor(base_marker);
-  
-    marker_array.markers.push_back(left_finger);
-    marker_array.markers.push_back(right_finger);
-    marker_array.markers.push_back(approach_marker);
-    marker_array.markers.push_back(base_marker);
-  
-    return marker_array;
-  }

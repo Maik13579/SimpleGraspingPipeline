@@ -3,6 +3,7 @@ simple_grasping:
     common:
       frame_id: "base_footprint" #z axis must be upwards
       # and it is easier if floor is at z=0
+      grasp_frame_id: "gripper_grasping_frame"
       n_threads: 8
       debug: True
       gpd_cfg_file: "/root/ros2_ws/src/simple_grasping/params/gpd.cfg"
