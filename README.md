@@ -23,7 +23,7 @@ Processes the latest input point cloud to perform perception tasks. Specifically
 - `geometry_msgs/Point querry_point`  
   A reference point used to sort planes and objects when not sorting by height.
 - `float32 height_above_plane`  
-  The minimum height above a plane at which objects are detected (default ~0.3 m if not provided).
+  The maximum height above a plane at which objects are detected (default ~0.3 m if not provided).
 - `float32 width_adjustment`  
   A parameter to expand the region of interest for object detection.
 
