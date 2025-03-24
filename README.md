@@ -98,3 +98,8 @@ Generates grasp candidates for a selected object using GPD. This service perform
   - `bool is_full_antipodal`- Whether the grasp is antipodal.
   - `bool is_half_antipodal`- Whether the grasp is indeterminate.
   - `float64 grasp_width`- Width of the object contained in the grasp
+
+## Hand Marker
+A marker of the hand is published at `~/hand` using the `grasping_frame_id` parameter. This is usefull to compare the dimenstions of the hand compared to the urdf model of your robot.
+
+![](imgs/HandMarker.png)
