@@ -32,11 +32,11 @@ services:
       - |
           sleep 1
           ros2 service call /simple_grasping/start_perception simple_grasping_interfaces/srv/StartPerception "querry_point:
-            x: 0.0
+            x: 1.0
             y: 0.0
-            z: 0.0
+            z: 1.0
           sort_planes_by_height: true
-          height_above_plane: 0.35
+          height_above_plane: 0.3
           width_adjustment: -0.05
           return_cloud: false" 
 

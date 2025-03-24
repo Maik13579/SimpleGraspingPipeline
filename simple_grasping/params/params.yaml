@@ -15,7 +15,7 @@ simple_grasping:
         x_max: 2.0
         y_min: -1.5
         y_max: 1.5
-        z_min: 0.1 #no floor
+        z_min: 0.05 #no floor
         z_max: 2.0
     plane_detection:
       normal_estimation_radius: 0.05
@@ -29,4 +29,4 @@ simple_grasping:
     object_detection:
       clustering_tolerance: 0.025
       clustering_min_cluster_size: 10
-      clustering_max_cluster_size: 5000000
+      clustering_max_cluster_size: 10000
