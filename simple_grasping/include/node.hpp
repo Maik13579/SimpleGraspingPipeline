@@ -30,10 +30,7 @@ public:
 private:
   NodeConfig config_;
   std::unique_ptr<gpd::GraspDetector> grasp_detector_;
-  std::shared_ptr<gpd::util::Cloud> gpd_cloud_;
-  pcl::PointCloud<pcl::PointXYZRGBA>::Ptr combined_cloud_rgb_;
-  Eigen::Matrix3Xd view_points_;
-  Eigen::MatrixXi camera_source_;
+  gpd::util::Cloud* gpd_cloud_;
 
   std::vector<Plane> planes_;
   std::vector<Object> objects_;
