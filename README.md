@@ -103,3 +103,5 @@ Generates grasp candidates for a selected object using GPD. This service perform
 A marker of the hand is published at `~/hand` using the `grasping_frame_id` parameter. This is usefull to compare the dimenstions of the hand compared to the urdf model of your robot.
 
 ![](imgs/HandMarker.png)
+
+![](imgs/HandMarker2.png)
