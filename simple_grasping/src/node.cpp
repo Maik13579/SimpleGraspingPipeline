@@ -92,6 +92,11 @@ void SimpleGraspingNode::handleStartPerception(
 {
   auto start_time = std::chrono::steady_clock::now();
 
+  // If request has a cloud, use it.
+  if (!request->cloud.header.frame_id.empty()) {
+    latest_cloud_ = std::make_shared<sensor_msgs::msg::PointCloud2>(request->cloud);
+  }
+  
   if (!latest_cloud_) {
     response->success = false;
     response->message = "No point cloud available";
@@ -176,6 +181,16 @@ void SimpleGraspingNode::handleStartPerception(
       marker_array.markers.push_back(plane_msg.obb);
     }
     debug_pub_markers_->publish(marker_array);
+  }
+
+  // Stop early if only planes are requested
+  if (request->only_planes) {
+    response->success = true;
+    response->message = "";
+    auto end_time = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+    RCLCPP_INFO(this->get_logger(), "Perception (only planes) took %ld ms", elapsed);
+    return;
   }
 
   // Object detection using additional parameters.

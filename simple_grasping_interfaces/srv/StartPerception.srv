@@ -1,6 +1,9 @@
 # Detect horizontal planes (like table plane or shelf) and objects on top of them
 # Idea is: "Objects can't fly" -> Detect plane -> remove plane -> spatial clustering -> done
 
+sensor_msgs/PointCloud2 cloud #if cloud.header.frame_id is empty, use pointcloud from topic instead
+bool only_planes #if true, only planes will be detected
+
 geometry_msgs/Point querry_point #planes and objects will be sorted by distance to this point
 bool sort_planes_by_height #if true, sort planes by height (lowest to highest)
 

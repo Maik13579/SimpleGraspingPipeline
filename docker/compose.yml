@@ -31,7 +31,22 @@ services:
       - -c
       - |
           sleep 1
-          ros2 service call /simple_grasping/start_perception simple_grasping_interfaces/srv/StartPerception "querry_point:
+          ros2 service call /simple_grasping/start_perception simple_grasping_interfaces/srv/StartPerception "cloud:
+            header:
+              stamp:
+                sec: 0
+                nanosec: 0
+              frame_id: ''
+            height: 0
+            width: 0
+            fields: []
+            is_bigendian: false
+            point_step: 0
+            row_step: 0
+            data: []
+            is_dense: false
+          only_planes: true
+          querry_point:
             x: 1.0
             y: 0.0
             z: 1.0
