@@ -20,8 +20,8 @@
 
 using namespace std::placeholders;
 
-SimpleGraspingNode::SimpleGraspingNode(const rclcpp::NodeOptions &options)
-  : rclcpp::Node("simple_grasping_node", options)
+SimpleGraspingPerceptionNode::SimpleGraspingPerceptionNode(const rclcpp::NodeOptions &options)
+  : rclcpp::Node("simple_grasping_perception_node", options)
 {
   // Load parameters
   load_parameters(config_, this);
@@ -52,7 +52,7 @@ SimpleGraspingNode::SimpleGraspingNode(const rclcpp::NodeOptions &options)
   // Subscribe to input cloud topic
   sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
     "~/input_cloud", 10,
-    std::bind(&SimpleGraspingNode::sensor_callback, this, _1)
+    std::bind(&SimpleGraspingPerceptionNode::sensor_callback, this, _1)
   );
 
   // Publisher for best grasp
@@ -71,22 +71,22 @@ SimpleGraspingNode::SimpleGraspingNode(const rclcpp::NodeOptions &options)
   // Create service servers instead of action servers.
   perception_srv_ = this->create_service<simple_grasping_interfaces::srv::StartPerception>(
     "~/start_perception",
-    std::bind(&SimpleGraspingNode::handleStartPerception, this, std::placeholders::_1, std::placeholders::_2)
+    std::bind(&SimpleGraspingPerceptionNode::handleStartPerception, this, std::placeholders::_1, std::placeholders::_2)
   );
 
   grasp_srv_ = this->create_service<simple_grasping_interfaces::srv::GenerateGrasps>(
     "~/generate_grasps",
-    std::bind(&SimpleGraspingNode::handleGenerateGrasps, this, std::placeholders::_1, std::placeholders::_2)
+    std::bind(&SimpleGraspingPerceptionNode::handleGenerateGrasps, this, std::placeholders::_1, std::placeholders::_2)
   );
 }
 
-void SimpleGraspingNode::sensor_callback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
+void SimpleGraspingPerceptionNode::sensor_callback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
 {
   latest_cloud_ = msg;
   hand_pub_->publish(hand_);
 }
 
-void SimpleGraspingNode::handleStartPerception(
+void SimpleGraspingPerceptionNode::handleStartPerception(
   const std::shared_ptr<simple_grasping_interfaces::srv::StartPerception::Request> request,
   std::shared_ptr<simple_grasping_interfaces::srv::StartPerception::Response> response)
 {
@@ -257,7 +257,7 @@ void SimpleGraspingNode::handleStartPerception(
   RCLCPP_INFO(this->get_logger(), "Perception took %ld ms", elapsed);
 }
 
-void SimpleGraspingNode::handleGenerateGrasps(
+void SimpleGraspingPerceptionNode::handleGenerateGrasps(
   const std::shared_ptr<simple_grasping_interfaces::srv::GenerateGrasps::Request> request,
   std::shared_ptr<simple_grasping_interfaces::srv::GenerateGrasps::Response> response)
 {
@@ -562,4 +562,4 @@ void SimpleGraspingNode::handleGenerateGrasps(
 
 #include "rclcpp_components/register_node_macro.hpp"
 
-RCLCPP_COMPONENTS_REGISTER_NODE(SimpleGraspingNode)
+RCLCPP_COMPONENTS_REGISTER_NODE(SimpleGraspingPerceptionNode)

@@ -8,7 +8,7 @@ from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
-    pkg_share = get_package_share_directory('simple_grasping')
+    pkg_share = get_package_share_directory('simple_grasping_perception')
     params_file = os.path.join(pkg_share, 'params', 'params.yaml')
 
     # Declare launch argument to remap the input cloud topic
@@ -18,10 +18,10 @@ def generate_launch_description():
         description='Topic to subscribe for input cloud'
     )
 
-    simple_grasping_node = Node(
-        package='simple_grasping',
-        executable='simple_grasping_node',
-        name='simple_grasping',
+    simple_grasping_perception_node = Node(
+        package='simple_grasping_perception',
+        executable='simple_grasping_perception_node',
+        name='simple_grasping_perception',
         output='screen',
         parameters=[params_file],
         remappings=[('~/input_cloud', LaunchConfiguration('input_cloud_topic'))]
@@ -29,5 +29,5 @@ def generate_launch_description():
 
     return LaunchDescription([
         input_cloud_arg,
-        simple_grasping_node
+        simple_grasping_perception_node
     ])

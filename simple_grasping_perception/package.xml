@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>simple_grasping</name>
+  <name>simple_grasping_perception</name>
   <version>0.0.0</version>
-  <description>Package for simple_grasping</description>
+  <description>Package for simple_grasping_perception</description>
   <maintainer email="Maik.Knof@rwu.de">Maik Knof</maintainer>
   <license>TODO: License declaration</license>
   <buildtool_depend>ament_cmake</buildtool_depend>

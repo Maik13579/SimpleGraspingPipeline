@@ -1,6 +1,5 @@
-// File: simple_grasping/include/filters.hpp
-#ifndef SIMPLE_GRASPING_FILTERS_HPP
-#define SIMPLE_GRASPING_FILTERS_HPP
+#ifndef SIMPLE_GRASPING_PERCEPTION_FILTERS_HPP
+#define SIMPLE_GRASPING_PERCEPTION_FILTERS_HPP
 
 #include "params.hpp"
 #include <pcl/point_cloud.h>
@@ -14,4 +13,4 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr filter_cloud(
 
 }  // namespace filters
 
-#endif  // SIMPLE_GRASPING_FILTERS_HPP
+#endif  // SIMPLE_GRASPING_PERCEPTION_FILTERS_HPP

@@ -1,5 +1,5 @@
-#ifndef SIMPLE_GRASPING_NODE_HPP
-#define SIMPLE_GRASPING_NODE_HPP
+#ifndef SIMPLE_GRASPING_PERCEPTION_NODE_HPP
+#define SIMPLE_GRASPING_PERCEPTION_NODE_HPP
 
 #include "utils.hpp"
 #include "params.hpp"
@@ -23,10 +23,10 @@
 #include <gpd/util/cloud.h>
 #include <gpd/grasp_detector.h>
 
-class SimpleGraspingNode : public rclcpp::Node
+class SimpleGraspingPerceptionNode : public rclcpp::Node
 {
 public:
-  explicit SimpleGraspingNode(const rclcpp::NodeOptions &options = rclcpp::NodeOptions());
+  explicit SimpleGraspingPerceptionNode(const rclcpp::NodeOptions &options = rclcpp::NodeOptions());
 
 private:
   NodeConfig config_;
@@ -73,4 +73,4 @@ private:
     const Eigen::Affine3f &T_obj_inv);
 };
 
-#endif // SIMPLE_GRASPING_NODE_HPP
+#endif // SIMPLE_GRASPING_PERCEPTION_NODE_HPP

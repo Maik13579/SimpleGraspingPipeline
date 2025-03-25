@@ -1,5 +1,5 @@
-#ifndef SIMPLE_GRASPING_OBJECT_DETECTOR_HPP
-#define SIMPLE_GRASPING_OBJECT_DETECTOR_HPP
+#ifndef SIMPLE_GRASPING_PERCEPTION_OBJECT_DETECTOR_HPP
+#define SIMPLE_GRASPING_PERCEPTION_OBJECT_DETECTOR_HPP
 
 #include "params.hpp"
 #include "plane_detector.hpp"
@@ -31,4 +31,4 @@ std::vector<Object> detect_objects(
 
 } // namespace object_detector
 
-#endif // SIMPLE_GRASPING_OBJECT_DETECTOR_HPP
+#endif // SIMPLE_GRASPING_PERCEPTION_OBJECT_DETECTOR_HPP

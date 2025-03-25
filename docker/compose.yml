@@ -1,6 +1,6 @@
 services:
-  simple_grasping:
-    container_name: simple_grasping
+  simple_grasping_perception:
+    container_name: simple_grasping_perception
     image: simple_grasping
     build:
       context: ..
@@ -20,18 +20,18 @@ services:
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix
       - $HOME/.Xauthority:/root/.Xauthority
-      - ../simple_grasping/params:/root/ros2_ws/src/simple_grasping/params
-    command: ros2 launch simple_grasping simple_grasping.launch.py input_cloud_topic:=/head_front_camera/depth_registered/points
+      - ../simple_grasping_perception/params:/root/ros2_ws/src/simple_grasping_perception/params
+    command: ros2 launch simple_grasping_perception simple_grasping_perception.launch.py input_cloud_topic:=/head_front_camera/depth_registered/points
 
   test:
     container_name: test
-    extends: simple_grasping
+    extends: simple_grasping_perception
     command: 
       - bash
       - -c
       - |
           sleep 1
-          ros2 service call /simple_grasping/start_perception simple_grasping_interfaces/srv/StartPerception "cloud:
+          ros2 service call /simple_grasping_perception/start_perception simple_grasping_interfaces/srv/StartPerception "cloud:
             header:
               stamp:
                 sec: 0
@@ -45,7 +45,7 @@ services:
             row_step: 0
             data: []
             is_dense: false
-          only_planes: true
+          only_planes: false
           querry_point:
             x: 1.0
             y: 0.0
@@ -56,7 +56,7 @@ services:
           return_cloud: false" 
 
           echo "Test front Grasp"
-          ros2 service call /simple_grasping/generate_grasps simple_grasping_interfaces/srv/GenerateGrasps "object_index: 0
+          ros2 service call /simple_grasping_perception/generate_grasps simple_grasping_interfaces/srv/GenerateGrasps "object_index: 0
           sample_cloud_from_obb: true
           disable_top_grasp: true
           min_distance_to_plane: 0.03

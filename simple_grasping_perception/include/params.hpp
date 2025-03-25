@@ -1,5 +1,5 @@
-#ifndef SIMPLE_GRASPING_PARAMS_HPP
-#define SIMPLE_GRASPING_PARAMS_HPP
+#ifndef SIMPLE_GRASPING_PERCEPTION_PARAMS_HPP
+#define SIMPLE_GRASPING_PERCEPTION_PARAMS_HPP
 
 #include <rclcpp/rclcpp.hpp>
 #include <type_traits>
@@ -78,4 +78,4 @@ struct NodeConfig
 
 void load_parameters(NodeConfig &config, rclcpp::Node *node);
 
-#endif  // SIMPLE_GRASPING_PARAMS_HPP
+#endif  // SIMPLE_GRASPING_PERCEPTION_PARAMS_HPP

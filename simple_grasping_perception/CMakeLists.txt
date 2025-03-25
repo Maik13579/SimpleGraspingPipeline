@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(simple_grasping)
+project(simple_grasping_perception)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -38,8 +38,8 @@ if(NOT GPD_INCLUDE_DIR)
   message(FATAL_ERROR "GPD include directory not found in /opt/gpd/include. Please verify your GPD source location.")
 endif()
 
-# Define the simple_grasping_node executable
-add_executable(simple_grasping_node
+# Define the simple_grasping_perception_node executable
+add_executable(simple_grasping_perception_node
   src/main.cpp
   src/node.cpp
   src/params.cpp
@@ -49,7 +49,7 @@ add_executable(simple_grasping_node
 )
 
 # Add include directories
-target_include_directories(simple_grasping_node PUBLIC
+target_include_directories(simple_grasping_perception_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
   ${PCL_INCLUDE_DIRS}
@@ -58,13 +58,13 @@ target_include_directories(simple_grasping_node PUBLIC
 )
 
 # Link against PCL and GPD libraries and OpenCV
-target_link_libraries(simple_grasping_node ${PCL_LIBRARIES} ${GPD_LIBRARY} ${OpenCV_LIBS})
+target_link_libraries(simple_grasping_perception_node ${PCL_LIBRARIES} ${GPD_LIBRARY} ${OpenCV_LIBS})
 
 # Add PCL definitions
-target_compile_definitions(simple_grasping_node PUBLIC ${PCL_DEFINITIONS} -DPCL_NO_PRECOMPILE)
+target_compile_definitions(simple_grasping_perception_node PUBLIC ${PCL_DEFINITIONS} -DPCL_NO_PRECOMPILE)
 
-# Add dependencies for simple_grasping_node
-ament_target_dependencies(simple_grasping_node
+# Add dependencies for simple_grasping_perception_node
+ament_target_dependencies(simple_grasping_perception_node
   simple_grasping_interfaces
   rclcpp
   sensor_msgs
@@ -77,16 +77,16 @@ ament_target_dependencies(simple_grasping_node
 )
 
 # Set C++ standard
-set_target_properties(simple_grasping_node PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES)
+set_target_properties(simple_grasping_perception_node PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES)
 
 # Link OpenMP if available
 if(OpenMP_CXX_FOUND)
-  target_link_libraries(simple_grasping_node OpenMP::OpenMP_CXX)
-  target_compile_definitions(simple_grasping_node PUBLIC -DUSE_OPENMP)
+  target_link_libraries(simple_grasping_perception_node OpenMP::OpenMP_CXX)
+  target_compile_definitions(simple_grasping_perception_node PUBLIC -DUSE_OPENMP)
 endif()
 
 # Install targets
-install(TARGETS simple_grasping_node
+install(TARGETS simple_grasping_perception_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -94,7 +94,7 @@ install(TARGETS simple_grasping_node
 
 
 # Build the node as a component
-add_library(simple_grasping_component SHARED
+add_library(simple_grasping_perception_component SHARED
   src/node.cpp
   src/params.cpp
   src/filters.cpp
@@ -102,7 +102,7 @@ add_library(simple_grasping_component SHARED
   src/object_detector.cpp
 )
 
-target_include_directories(simple_grasping_component PUBLIC
+target_include_directories(simple_grasping_perception_component PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
   ${PCL_INCLUDE_DIRS}
@@ -110,11 +110,11 @@ target_include_directories(simple_grasping_component PUBLIC
   ${OpenCV_INCLUDE_DIRS}
 )
 
-target_link_libraries(simple_grasping_component ${PCL_LIBRARIES} ${GPD_LIBRARY} ${OpenCV_LIBS})
+target_link_libraries(simple_grasping_perception_component ${PCL_LIBRARIES} ${GPD_LIBRARY} ${OpenCV_LIBS})
 
-target_compile_definitions(simple_grasping_component PUBLIC ${PCL_DEFINITIONS} -DPCL_NO_PRECOMPILE)
+target_compile_definitions(simple_grasping_perception_component PUBLIC ${PCL_DEFINITIONS} -DPCL_NO_PRECOMPILE)
 
-ament_target_dependencies(simple_grasping_component
+ament_target_dependencies(simple_grasping_perception_component
   simple_grasping_interfaces
   rclcpp
   rclcpp_components
@@ -129,13 +129,13 @@ ament_target_dependencies(simple_grasping_component
 )
 
 if(OpenMP_CXX_FOUND)
-  target_link_libraries(simple_grasping_component OpenMP::OpenMP_CXX)
-  target_compile_definitions(simple_grasping_component PUBLIC -DUSE_OPENMP)
+  target_link_libraries(simple_grasping_perception_component OpenMP::OpenMP_CXX)
+  target_compile_definitions(simple_grasping_perception_component PUBLIC -DUSE_OPENMP)
 endif()
 
-rclcpp_components_register_nodes(simple_grasping_component "SimpleGraspingNode")
+rclcpp_components_register_nodes(simple_grasping_perception_component "SimpleGraspingNode")
 
-install(TARGETS simple_grasping_component
+install(TARGETS simple_grasping_perception_component
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin

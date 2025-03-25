@@ -1,5 +1,5 @@
-#ifndef SIMPLE_GRASPING_UTILS_HPP
-#define SIMPLE_GRASPING_UTILS_HPP
+#ifndef SIMPLE_GRASPING_PERCEPTION_UTILS_HPP
+#define SIMPLE_GRASPING_PERCEPTION_UTILS_HPP
 
 #include <visualization_msgs/msg/marker.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
@@ -301,4 +301,4 @@ inline visualization_msgs::msg::MarkerArray transformMarkerArray(
 
 
 }  // namespace utils
-#endif  // SIMPLE_GRASPING_UTILS_HPP
+#endif  // SIMPLE_GRASPING_PERCEPTION_UTILS_HPP

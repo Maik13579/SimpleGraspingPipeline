@@ -1,5 +1,5 @@
-#ifndef SIMPLE_GRASPING_PLANE_DETECTOR_HPP
-#define SIMPLE_GRASPING_PLANE_DETECTOR_HPP
+#ifndef SIMPLE_GRASPING_PERCEPTION_PLANE_DETECTOR_HPP
+#define SIMPLE_GRASPING_PERCEPTION_PLANE_DETECTOR_HPP
 
 #include "params.hpp"
 #include <pcl/point_cloud.h>
@@ -34,4 +34,4 @@ std::vector<Plane> detect_planes(
 
 }  // namespace plane_detector
 
-#endif  // SIMPLE_GRASPING_PLANE_DETECTOR_HPP
+#endif  // SIMPLE_GRASPING_PERCEPTION_PLANE_DETECTOR_HPP
