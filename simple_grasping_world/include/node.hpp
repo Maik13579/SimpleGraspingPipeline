@@ -33,8 +33,17 @@ private:
   rclcpp::Client<composition_interfaces::srv::LoadNode>::SharedPtr load_node_client_;
   rclcpp::Client<composition_interfaces::srv::UnloadNode>::SharedPtr unload_node_client_;
   rclcpp::TimerBase::SharedPtr timer_;
-  void load_object_components(); // one shot timer callback to load components
+  void load_objects(); // one shot timer callback to load components
   bool loaded_;
+
+  /**
+   * 
+   * @brief Load a object and create its components and service clients
+   *
+   * @param obj The object to load
+   */
+  void load_object(Object &obj);
+
   /**
    * 
    * @brief Load a pointcloud server component for a given object

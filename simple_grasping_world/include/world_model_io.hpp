@@ -48,7 +48,6 @@ inline std::vector<Object> load_world_model(const std::string &path)
     Object obj;
     obj.id = node["id"].as<std::string>();
     obj.num_planes = node["num_planes"].as<int>();
-    obj.rest_cloud = std::make_shared<pcl::PointCloud<pcl::PointXYZ>>();
     objects.push_back(obj);
   }
 

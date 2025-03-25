@@ -1,6 +1,14 @@
 #include "node.hpp"
 #include <filesystem>
 
+#include "pointcloud_server_interfaces/srv/add.hpp"
+#include "pointcloud_server_interfaces/srv/clear.hpp"
+#include "pointcloud_server_interfaces/srv/clear_points.hpp"
+#include "pointcloud_server_interfaces/srv/empty_around_point.hpp"
+#include "pointcloud_server_interfaces/srv/get.hpp"
+#include "pointcloud_server_interfaces/srv/save.hpp"
+#include "pointcloud_server_interfaces/srv/set_grid_size.hpp"
+
 using namespace std::placeholders;
 
 SimpleGraspingWorldNode::SimpleGraspingWorldNode(const rclcpp::NodeOptions &options)
@@ -24,28 +32,64 @@ SimpleGraspingWorldNode::SimpleGraspingWorldNode(const rclcpp::NodeOptions &opti
   loaded_ = false;
   timer_ = this->create_wall_timer(
     std::chrono::milliseconds(1000),
-    std::bind(&SimpleGraspingWorldNode::load_object_components, this)
+    std::bind(&SimpleGraspingWorldNode::load_objects, this)
   );
 }
-void SimpleGraspingWorldNode::load_object_components()
+void SimpleGraspingWorldNode::load_objects()
 {
   if (loaded_)
     return; //Shouldn't happen, but just in case
 
   if (!load_node_client_->wait_for_service(std::chrono::seconds(1))) {
-    RCLCPP_WARN(this->get_logger(), "Waiting for /component_manager/load_node service...");
+    RCLCPP_WARN(this->get_logger(), "Waiting for /simple_world/component_manager/_container/load_node service...");
     return;
   }
 
+  // Load objects
   for (auto &obj : objects_)
-  {
-    load_object_component(obj);
-  }
+    load_object(obj);
+  RCLCPP_INFO(this->get_logger(), "Loaded all objects.");
 
   // Cancel timer after first call (one-shot)
   timer_->cancel();
   loaded_ = true; // mark as loaded
 }
+
+
+void SimpleGraspingWorldNode::load_object(Object &obj)
+{
+  RCLCPP_INFO(this->get_logger(), "Loading object '%s'...", obj.id.c_str());
+  load_object_component(obj);
+
+  RCLCPP_INFO(this->get_logger(), "Creating service clients for object '%s'...", obj.id.c_str());
+
+  std::string base_ns = "/simple_world/objects/" + obj.id + "/";
+  obj.clients.add = this->create_client<pointcloud_server_interfaces::srv::Add>(base_ns + "add");
+  obj.clients.clear = this->create_client<pointcloud_server_interfaces::srv::Clear>(base_ns + "clear");
+  obj.clients.clear_points = this->create_client<pointcloud_server_interfaces::srv::ClearPoints>(base_ns + "clear_points");
+  obj.clients.empty_around_point = this->create_client<pointcloud_server_interfaces::srv::EmptyAroundPoint>(base_ns + "empty_around_point");
+  obj.clients.get = this->create_client<pointcloud_server_interfaces::srv::Get>(base_ns + "get");
+  obj.clients.save = this->create_client<pointcloud_server_interfaces::srv::Save>(base_ns + "save");
+  obj.clients.set_grid_size = this->create_client<pointcloud_server_interfaces::srv::SetGridSize>(base_ns + "set_grid_size");
+
+  std::vector<std::pair<std::string, rclcpp::ClientBase::SharedPtr>> clients = {
+    {"add", obj.clients.add},
+    {"clear", obj.clients.clear},
+    {"clear_points", obj.clients.clear_points},
+    {"empty_around_point", obj.clients.empty_around_point},
+    {"get", obj.clients.get},
+    {"save", obj.clients.save},
+    {"set_grid_size", obj.clients.set_grid_size},
+  };
+
+  for (const auto &[name, client] : clients)
+  {
+    RCLCPP_INFO(this->get_logger(), "Waiting for service '%s' of object '%s'...", name.c_str(), obj.id.c_str());
+    client->wait_for_service();
+    RCLCPP_INFO(this->get_logger(), "Connected to service '%s' for object '%s'", name.c_str(), obj.id.c_str());
+  }
+}
+
 
 
 void SimpleGraspingWorldNode::load_object_component(Object &obj)

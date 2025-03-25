@@ -7,6 +7,7 @@ endif()
 
 # Find dependencies
 find_package(simple_grasping_interfaces REQUIRED)
+find_package(pointcloud_server_interfaces REQUIRED)
 find_package(composition_interfaces REQUIRED)
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -42,6 +43,7 @@ target_compile_definitions(simple_grasping_world_component PUBLIC ${PCL_DEFINITI
 
 ament_target_dependencies(simple_grasping_world_component
   simple_grasping_interfaces
+  pointcloud_server_interfaces
   composition_interfaces
   rclcpp
   rclcpp_components

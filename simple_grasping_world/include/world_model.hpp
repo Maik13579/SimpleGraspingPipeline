@@ -6,31 +6,50 @@
 #include <optional>
 #include <string>
 
-#include <pcl/point_cloud.h>
-#include <pcl/point_types.h>
-#include <pcl/memory.h>
 #include <visualization_msgs/msg/marker.hpp>
+
+#include "rclcpp/rclcpp.hpp"
+#include "pointcloud_server_interfaces/srv/add.hpp"
+#include "pointcloud_server_interfaces/srv/clear.hpp"
+#include "pointcloud_server_interfaces/srv/clear_points.hpp"
+#include "pointcloud_server_interfaces/srv/empty_around_point.hpp"
+#include "pointcloud_server_interfaces/srv/get.hpp"
+#include "pointcloud_server_interfaces/srv/save.hpp"
+#include "pointcloud_server_interfaces/srv/set_grid_size.hpp"
 
 /**
  * \brief Represents a horizontal plane detected in the scene.
  */
 struct Plane 
 {
-  pcl::PointCloud<pcl::PointXYZ>::Ptr inliers; ///< Points belonging to the plane
   visualization_msgs::msg::Marker obb;         ///< Oriented bounding box of the plane
   float height;                                ///< Height (z value) of the plane
   std::string object_id;                       ///< Associated object ID (name or label)
 };
 
 /**
- * \brief Represents an object composed of one or more planes and remaining points.
+ * @brief Stores the service clients for the objects
+ */
+struct ServiceClients
+{
+  rclcpp::Client<pointcloud_server_interfaces::srv::Add>::SharedPtr add;
+  rclcpp::Client<pointcloud_server_interfaces::srv::Clear>::SharedPtr clear;
+  rclcpp::Client<pointcloud_server_interfaces::srv::ClearPoints>::SharedPtr clear_points;
+  rclcpp::Client<pointcloud_server_interfaces::srv::EmptyAroundPoint>::SharedPtr empty_around_point;
+  rclcpp::Client<pointcloud_server_interfaces::srv::Get>::SharedPtr get;
+  rclcpp::Client<pointcloud_server_interfaces::srv::Save>::SharedPtr save;
+  rclcpp::Client<pointcloud_server_interfaces::srv::SetGridSize>::SharedPtr set_grid_size;
+};
+
+/**
+ * \brief Represents an object composed of one or more planes
  */
 struct Object
 {
   std::string id;               ///< Unique object identifier (semantic name)
+  int32_t num_planes;           ///< Number of planes inside object
   uint64_t unique_component_id; ///< Unique component identifier
-  int32_t num_planes;
-  pcl::PointCloud<pcl::PointXYZ>::Ptr rest_cloud = pcl::make_shared<pcl::PointCloud<pcl::PointXYZ>>(); ///< Points not belonging to any plane
+  ServiceClients clients;       ///< Service clients
 };
 
 /**
