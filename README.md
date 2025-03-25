@@ -10,24 +10,24 @@ This service performs plane and object detection on a point cloud. It is designe
 
 ### Request
 
-| Field                 | Type                         | Description |
-|----------------------|------------------------------|-------------|
-| `sensor_msgs/PointCloud2 cloud` | Optional input cloud (used if `header.frame_id` is non-empty). If empty, uses the latest subscribed cloud. |
-| `bool only_planes`   | If true, only planes will be detected, skipping object detection. |
-| `bool sort_planes_by_height` | If true, planes are sorted from lowest to highest in height. Otherwise, sorted by distance to `querry_point`. |
-| `geometry_msgs/Point querry_point` | Reference point for sorting planes/objects by proximity. |
-| `float32 height_above_plane` | Height above each detected plane to search for objects. The bounding box is extended upwards by this value. Default: `0.3`. |
-| `float32 width_adjustment` | Shrinks or expands the X/Y extent of the plane bounding box before object search. Negative values shrink, positive values expand. |
-| `bool return_cloud`  | If true, the inlier clouds of planes and objects are returned. |
+| Field                      | Type                         | Description |
+|---------------------------|------------------------------|-------------|
+| `cloud`                   | `sensor_msgs/PointCloud2`    | Optional input cloud (used if `header.frame_id` is non-empty). If empty, uses the latest subscribed cloud. |
+| `only_planes`             | `bool`                       | If true, only planes will be detected, skipping object detection. |
+| `sort_planes_by_height`   | `bool`                       | If true, planes are sorted from lowest to highest in height. Otherwise, sorted by distance to `querry_point`. |
+| `querry_point`            | `geometry_msgs/Point`        | Reference point for sorting planes/objects by proximity. |
+| `height_above_plane`      | `float32`                    | Height above each detected plane to search for objects. The bounding box is extended upwards by this value. Default: `0.3`. |
+| `width_adjustment`        | `float32`                    | Shrinks or expands the X/Y extent of the plane bounding box before object search. Negative values shrink, positive values expand. |
+| `return_cloud`            | `bool`                       | If true, the inlier clouds of planes and objects are returned. |
 
 ### Response
 
-| Field       | Type      | Description |
-|-------------|-----------|-------------|
-| `bool success` | True if perception ran successfully. |
-| `string message` | Info or error message. |
-| `Plane[] planes` | Detected horizontal planes (with optional inlier clouds and OBBs). |
-| `Object[] objects` | Objects detected above the planes (with supporting plane index and optional cloud). |
+| Field       | Type         | Description |
+|-------------|--------------|-------------|
+| `success`   | `bool`       | True if perception ran successfully. |
+| `message`   | `string`     | Info or error message. |
+| `planes`    | `Plane[]`    | Detected horizontal planes (with optional inlier clouds and OBBs). |
+| `objects`   | `Object[]`   | Objects detected above the planes (with supporting plane index and optional cloud). |
 
 ### Notes
 
@@ -43,25 +43,25 @@ This service generates grasp candidates using GPD for a selected object detected
 
 ### Request
 
-| Field                        | Type                      | Description |
-|-----------------------------|---------------------------|-------------|
-| `int32 object_index`        | Index of the object to generate grasps for. |
-| `bool sample_cloud_from_obb` | If true, sample cloud points from object OBBs instead of the sensor cloud. |
-| `bool disable_top_grasp`    | If true, adds a synthetic ceiling (duplicate plane cloud above) to block top-down grasps. |
-| `float32 min_distance_to_plane` | Vertical offset to apply when augmenting with synthetic plane cloud. |
-| `int32 num_grasps_selected` | Number of top scoring grasp candidates to return. |
-| `geometry_msgs/Point approach_direction` | Desired grasp approach direction (default: `(1, 0, 0)`). |
-| `float32 thresh_deg`        | Angular threshold (in degrees) for filtering grasps by approach direction. Set to 0 to disable filtering. |
-| `float32 pre_grasp_dist`    | Offset distance along the approach vector for pre-grasp pose. |
-| `float32 retreat_dist`      | Offset distance along the plane normal for retreat pose. |
+| Field                    | Type                      | Description |
+|-------------------------|---------------------------|-------------|
+| `object_index`          | `int32`                   | Index of the object to generate grasps for. |
+| `sample_cloud_from_obb` | `bool`                    | If true, sample cloud points from object OBBs instead of the sensor cloud. |
+| `disable_top_grasp`     | `bool`                    | If true, adds a synthetic ceiling (duplicate plane cloud above) to block top-down grasps. |
+| `min_distance_to_plane` | `float32`                 | Vertical offset to apply when augmenting with synthetic plane cloud. |
+| `num_grasps_selected`   | `int32`                   | Number of top scoring grasp candidates to return. |
+| `approach_direction`    | `geometry_msgs/Point`     | Desired grasp approach direction (default: `(1, 0, 0)`). |
+| `thresh_deg`            | `float32`                 | Angular threshold (in degrees) for filtering grasps by approach direction. Set to 0 to disable filtering. |
+| `pre_grasp_dist`        | `float32`                 | Offset distance along the approach vector for pre-grasp pose. |
+| `retreat_dist`          | `float32`                 | Offset distance along the plane normal for retreat pose. |
 
 ### Response
 
-| Field         | Type         | Description |
-|---------------|--------------|-------------|
-| `bool success` | True if grasp generation was successful. |
-| `string message` | Status or error message. |
-| `Grasp[] grasps` | List of grasp candidates. Each `Grasp` includes: <br>• `PoseStamped pre_grasp` <br>• `PoseStamped grasp` <br>• `PoseStamped retreat` <br>• `float64 score` <br>• `bool is_full_antipodal` <br>• `bool is_half_antipodal` <br>• `float64 grasp_width` |
+| Field       | Type        | Description |
+|-------------|-------------|-------------|
+| `success`   | `bool`      | True if grasp generation was successful. |
+| `message`   | `string`    | Status or error message. |
+| `grasps`    | `Grasp[]`   | List of grasp candidates. Each `Grasp` includes:<br>• `PoseStamped pre_grasp`<br>• `PoseStamped grasp`<br>• `PoseStamped retreat`<br>• `float64 score`<br>• `bool is_full_antipodal`<br>• `bool is_half_antipodal`<br>• `float64 grasp_width` |
 
 ### Notes
 
