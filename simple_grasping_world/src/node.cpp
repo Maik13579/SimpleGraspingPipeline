@@ -61,6 +61,7 @@ void SimpleGraspingWorldNode::load_object_component(Object &obj)
   std::vector<rclcpp::Parameter> params = {
     rclcpp::Parameter("frame_id", config_.common.tf_prefix + obj.id),
     rclcpp::Parameter("map_path", object_file.string()),
+    rclcpp::Parameter("only_services", true),
     rclcpp::Parameter("GridSize", config_.objects.grid_size),
     rclcpp::Parameter("VoxelResolution", config_.objects.voxel_resolution),
     rclcpp::Parameter("LeafSize", config_.objects.leaf_size),
