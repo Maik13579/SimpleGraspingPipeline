@@ -28,7 +28,7 @@ services:
       - bash
       - -c
       - |
-          sleep 1
+          sleep 3
           ros2 service call /simple_grasping_perception/start_perception simple_grasping_interfaces/srv/StartPerception "cloud:
             header:
               stamp:
@@ -45,9 +45,9 @@ services:
             is_dense: false
           only_planes: false
           querry_point:
-            x: 1.0
+            x: 0.0
             y: 0.0
-            z: 1.0
+            z: 0.0
           sort_planes_by_height: true
           height_above_plane: 0.3
           width_adjustment: -0.05
@@ -70,7 +70,7 @@ services:
           sleep 5
 
           echo "Test Top Grasp"
-          ros2 service call /simple_grasping/generate_grasps simple_grasping_interfaces/srv/GenerateGrasps "object_index: 0
+          ros2 service call /simple_grasping_perception/generate_grasps simple_grasping_interfaces/srv/GenerateGrasps "object_index: 0
           sample_cloud_from_obb: true
           disable_top_grasp: false
           min_distance_to_plane: 0.03
