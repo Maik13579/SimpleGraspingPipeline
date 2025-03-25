@@ -427,6 +427,12 @@ void SimpleGraspingPerceptionNode::handleGenerateGrasps(
   std::vector<std::unique_ptr<gpd::candidate::Hand>> grasps = grasp_detector_->detectGrasps(*gpd_cloud_);
   RCLCPP_INFO(this->get_logger(), "Detected %zu grasps from GPD.", grasps.size());
 
+  if (grasps.empty()) {
+    response->success = false;
+    response->message = "No grasps detected!";
+    return;
+  }
+
   // Publish grasp markers in debug mode.
   if (config_.common.debug && debug_pub_markers_) {
     // Normalize scores.
@@ -469,7 +475,7 @@ void SimpleGraspingPerceptionNode::handleGenerateGrasps(
         marker.color.r = static_cast<float>(1.0 - normalized_score);
         marker.color.g = static_cast<float>(normalized_score);
         marker.color.b = 0.0f;
-        marker.color.a = static_cast<float>(normalized_score);
+        marker.color.a = normalized_score > 0.1f ? static_cast<float>(normalized_score) : 0.1f;
         marker.id = marker_id++;
 
         all_grasp_markers.markers.push_back(marker);
