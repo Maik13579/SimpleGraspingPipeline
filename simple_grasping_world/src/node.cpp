@@ -77,6 +77,20 @@ void SimpleGraspingWorldNode::load_object_component(Object &obj)
   for (const auto &p : params)
     req->parameters.push_back(p.to_parameter_msg());
 
+  // Remappings
+  req->remap_rules.push_back("~/map:=~/cloud");
+  // hide unused stuff
+  req->remap_rules.push_back("~/submap:=~/_submap");
+  req->remap_rules.push_back("~/build_kd_tree:=~/_build_kd_tree");
+  req->remap_rules.push_back("~/build_submap:=~/_build_submap");
+  req->remap_rules.push_back("~/get_submap:=~/_get_submap");
+  req->remap_rules.push_back("~/knn_search:=~/_knn_search");
+  req->remap_rules.push_back("~/label_new_points:=~/_label_new_points");
+  req->remap_rules.push_back("~/set_leaf_size:=~/_set_leaf_size");
+  req->remap_rules.push_back("~/set_voxel_resolution:=~/_set_voxel_resolution");
+  req->remap_rules.push_back("~/roll:=~/_roll");
+  req->remap_rules.push_back("~/reset:=~/_reset");
+
   auto future = load_node_client_->async_send_request(req,
     [&obj, this](rclcpp::Client<composition_interfaces::srv::LoadNode>::SharedFuture result) {
       if (result.get()->success) {
