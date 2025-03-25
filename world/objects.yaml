@@ -1,0 +1,5 @@
+objects:
+  - id: "table"
+    num_planes: 1
+  - id: "shelf"
+    num_planes: 4

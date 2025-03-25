@@ -1,0 +1,21 @@
+services:
+  common:
+    image: simple_grasping
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    runtime: nvidia
+    environment:
+      ROS_DOMAIN_ID: 42
+      DISPLAY: $DISPLAY
+      QT_X11_NO_MITSHM: "1"
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDI_DRIVER_CAPABILITIES: compute,video,utility,graphics
+    network_mode: host
+    ipc: host
+    privileged: true
+    stdin_open: true
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - $HOME/.Xauthority:/root/.Xauthority
+    command: tail -f /dev/null

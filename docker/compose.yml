@@ -1,31 +1,29 @@
 services:
   simple_grasping_perception:
     container_name: simple_grasping_perception
-    image: simple_grasping
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    runtime: nvidia
-    environment:
-      ROS_DOMAIN_ID: 42
-      DISPLAY: $DISPLAY
-      QT_X11_NO_MITSHM: "1"
-      NVIDIA_VISIBLE_DEVICES: all
-      NVIDI_DRIVER_CAPABILITIES: compute,video,utility,graphics
-      LIBGL_ALWAYS_SOFTWARE: "1"
-    network_mode: host
-    ipc: host
-    privileged: true
-    stdin_open: true
+    extends:
+      file: common.yml
+      service: common
     volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix
-      - $HOME/.Xauthority:/root/.Xauthority
-      - ../simple_grasping_perception/params:/root/ros2_ws/src/simple_grasping_perception/params
+      - ../simple_grasping_perception/params:/root/ros2_ws/src/simple_grasping/simple_grasping_perception/params
     command: ros2 launch simple_grasping_perception simple_grasping_perception.launch.py input_cloud_topic:=/head_front_camera/depth_registered/points
+
+  simple_grasping_world:
+    container_name: simple_grasping_world
+    extends:
+      file: common.yml
+      service: common
+    volumes:
+      - ../world:/world
+      - ../simple_grasping_world/params:/root/ros2_ws/src/simple_grasping/simple_grasping_world/params
+      - ../simple_grasping_world/launch:/root/ros2_ws/src/simple_grasping/simple_grasping_world/launch
+    command: ros2 launch simple_grasping_world world.launch.py
 
   test:
     container_name: test
-    extends: simple_grasping_perception
+    extends:
+      file: common.yml
+      service: common
     command: 
       - bash
       - -c

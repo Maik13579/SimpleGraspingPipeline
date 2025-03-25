@@ -133,7 +133,7 @@ if(OpenMP_CXX_FOUND)
   target_compile_definitions(simple_grasping_perception_component PUBLIC -DUSE_OPENMP)
 endif()
 
-rclcpp_components_register_nodes(simple_grasping_perception_component "SimpleGraspingNode")
+rclcpp_components_register_nodes(simple_grasping_perception_component "SimpleGraspingPerceptionNode")
 
 install(TARGETS simple_grasping_perception_component
   ARCHIVE DESTINATION lib
