@@ -558,3 +558,8 @@ void SimpleGraspingNode::handleGenerateGrasps(
   auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
   RCLCPP_INFO(this->get_logger(), "Grasp generation took %ld ms", elapsed);
 }
+
+
+#include "rclcpp_components/register_node_macro.hpp"
+
+RCLCPP_COMPONENTS_REGISTER_NODE(SimpleGraspingNode)

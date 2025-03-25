@@ -9,6 +9,7 @@ endif()
 find_package(simple_grasping_interfaces REQUIRED)
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_components REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(pcl_conversions REQUIRED)
 find_package(pcl_ros REQUIRED)
@@ -88,6 +89,60 @@ endif()
 install(TARGETS simple_grasping_node
   DESTINATION lib/${PROJECT_NAME}
 )
+
+
+
+
+# Build the node as a component
+add_library(simple_grasping_component SHARED
+  src/node.cpp
+  src/params.cpp
+  src/filters.cpp
+  src/plane_detector.cpp
+  src/object_detector.cpp
+)
+
+target_include_directories(simple_grasping_component PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+  ${PCL_INCLUDE_DIRS}
+  ${GPD_INCLUDE_DIR}
+  ${OpenCV_INCLUDE_DIRS}
+)
+
+target_link_libraries(simple_grasping_component ${PCL_LIBRARIES} ${GPD_LIBRARY} ${OpenCV_LIBS})
+
+target_compile_definitions(simple_grasping_component PUBLIC ${PCL_DEFINITIONS} -DPCL_NO_PRECOMPILE)
+
+ament_target_dependencies(simple_grasping_component
+  simple_grasping_interfaces
+  rclcpp
+  rclcpp_components
+  sensor_msgs
+  pcl_conversions
+  pcl_ros
+  tf2_ros
+  tf2_sensor_msgs
+  tf2_eigen
+  geometry_msgs
+  visualization_msgs
+)
+
+if(OpenMP_CXX_FOUND)
+  target_link_libraries(simple_grasping_component OpenMP::OpenMP_CXX)
+  target_compile_definitions(simple_grasping_component PUBLIC -DUSE_OPENMP)
+endif()
+
+rclcpp_components_register_nodes(simple_grasping_component "SimpleGraspingNode")
+
+install(TARGETS simple_grasping_component
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
+)
+
+
+
 
 # Install launch and params directories
 install(DIRECTORY launch/

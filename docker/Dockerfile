@@ -46,5 +46,6 @@ WORKDIR ${ROS_WS}
 COPY simple_grasping ${ROS_WS}/src/simple_grasping
 COPY simple_grasping_interfaces ${ROS_WS}/src/simple_grasping_interfaces
 RUN source /opt/ros/$ROS_DISTRO/setup.bash \
- && colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
+ && colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release \
+ --parallel-workers 2
 RUN echo "source ${ROS_WS}/install/setup.bash" >> /root/.bashrc
