@@ -1,3 +1,6 @@
 [submodule "gpd"]
 	path = gpd
 	url = https://github.com/atenpas/gpd.git
+[submodule "pointcloud_server"]
+	path = pointcloud_server
+	url = https://github.com/Maik13579/pointcloud_server.git
