@@ -20,6 +20,9 @@ SimpleGraspingWorldNode::SimpleGraspingWorldNode(const rclcpp::NodeOptions &opti
   std::filesystem::path furnitures_file = std::filesystem::path(config_.common.world_path) / "furnitures.yaml";
   furnitures_ = load_world_model(furnitures_file.string());
 
+  // Init subscribers
+  sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>("~/input_cloud", 10, std::bind(&SimpleGraspingWorldNode::pointcloud_callback, this, _1));
+
   // Initialize TF2 buffer and listener for cloud transformation
   tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
   tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
@@ -29,6 +32,13 @@ SimpleGraspingWorldNode::SimpleGraspingWorldNode(const rclcpp::NodeOptions &opti
   unload_node_client_ = this->create_client<composition_interfaces::srv::UnloadNode>("/simple_world/component_manager/_container/unload_node");
   start_perception_client_ = this->create_client<simple_grasping_interfaces::srv::StartPerception>("/simple_grasping_perception/start_perception");
 
+  // Init service server
+  callback_group_add_frame_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  add_frame_srv_ = this->create_service<simple_grasping_interfaces::srv::AddFrame>(
+    "~/add_frame", std::bind(&SimpleGraspingWorldNode::add_frame_callback, this, _1, _2),
+    rclcpp::ServicesQoS(),
+    callback_group_add_frame_);
+
   // Schedule deferred loading after initialization
   loaded_ = false;
   callback_group_timer_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -37,6 +47,11 @@ SimpleGraspingWorldNode::SimpleGraspingWorldNode(const rclcpp::NodeOptions &opti
     std::bind(&SimpleGraspingWorldNode::load_furnitures, this),
     callback_group_timer_
   );
+}
+
+void SimpleGraspingWorldNode::pointcloud_callback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
+{
+  latest_cloud_ = *msg;
 }
 void SimpleGraspingWorldNode::load_furnitures()
 {
@@ -224,6 +239,109 @@ void SimpleGraspingWorldNode::load_furniture_component(Furniture &furniture)
     }
   );
 }
+
+
+void SimpleGraspingWorldNode::add_frame_callback(
+  const std::shared_ptr<simple_grasping_interfaces::srv::AddFrame::Request> request,
+  std::shared_ptr<simple_grasping_interfaces::srv::AddFrame::Response> response)
+{
+  // Get the input cloud from the request (or fallback to stored cloud)
+  sensor_msgs::msg::PointCloud2 input_cloud;
+  if (request->cloud.header.frame_id.empty()) {
+    if (latest_cloud_.data.empty()) {  // Check if the stored cloud is empty
+      input_cloud = *latest_cloud_;
+    } else {
+      response->success = false;
+      response->message = "No cloud provided and no stored cloud available";
+      return;
+    }
+  } else {
+    input_cloud = request->cloud;
+  }
+
+  // Lookup transform from input cloud frame to world frame.
+  geometry_msgs::msg::TransformStamped transformStamped;
+  try {
+    transformStamped = tf_buffer_->lookupTransform(
+      config_.common.world_frame_id,
+      input_cloud.header.frame_id,
+      input_cloud.header.stamp,
+      rclcpp::Duration(1, 0)
+    );
+    RCLCPP_INFO(this->get_logger(), "Obtained transform from '%s' to world frame.", input_cloud.header.frame_id.c_str());
+  } catch (tf2::TransformException &ex) {
+    response->success = false;
+    response->message = std::string("TF transform error: ") + ex.what();
+    return;
+  }
+
+  // Call the perception service
+  auto perception_req = std::make_shared<simple_grasping_interfaces::srv::StartPerception::Request>();
+  perception_req->cloud = input_cloud;
+  perception_req->only_planes = false;
+  perception_req->sort_planes_by_height = true;
+  perception_req->height_above_plane = 0.3;
+  perception_req->width_adjustment = -0.05;
+  perception_req->return_cloud = true;
+  RCLCPP_INFO(this->get_logger(), "Calling perception service...");
+  auto future = start_perception_client_->async_send_request(perception_req);
+  auto perception_res = future.get(); 
+
+  if (!perception_res->success) {
+    response->success = false;
+    response->message = perception_res->message;
+    RCLCPP_ERROR(this->get_logger(), "Perception failed: %s", perception_res->message.c_str());
+    return;
+  }
+  
+  RCLCPP_INFO(this->get_logger(), "Perception returned %zu planes and %zu objects.", 
+    perception_res->planes.size(), perception_res->objects.size());
+
+  // For each detected plane, transform both the marker and the inlier cloud.
+  std::vector<simple_grasping_interfaces::msg::Plane> transformed_planes;
+  for (const auto &plane : perception_res->planes) {
+    // Transform the plane marker.
+    visualization_msgs::msg::Marker transformed_marker;
+    tf2::doTransform(plane.obb, transformed_marker, transformStamped);
+
+    // Transform the plane's inlier cloud.
+    sensor_msgs::msg::PointCloud2 transformed_plane_cloud;
+    tf2::doTransform(plane.cloud, transformed_plane_cloud, transformStamped);
+
+    // Create a transformed plane message.
+    simple_grasping_interfaces::msg::Plane transformed_plane = plane;
+    transformed_plane.obb = transformed_marker;
+    transformed_plane.cloud = transformed_plane_cloud;
+    // Optionally update plane equation values here if needed.
+    transformed_planes.push_back(transformed_plane);
+    RCLCPP_INFO(this->get_logger(), "Transformed plane: height = %.2f", transformed_marker.pose.position.z);
+  }
+
+  // For each detected object, transform both the marker and the inlier cloud.
+  std::vector<simple_grasping_interfaces::msg::Object> transformed_objects;
+  for (const auto &object : perception_res->objects) {
+    // Transform the object marker.
+    visualization_msgs::msg::Marker transformed_marker;
+    tf2::doTransform(object.obb, transformed_marker, transformStamped);
+
+    // Transform the object's inlier cloud.
+    sensor_msgs::msg::PointCloud2 transformed_object_cloud;
+    tf2::doTransform(object.cloud, transformed_object_cloud, transformStamped);
+
+    // Create a transformed object message.
+    simple_grasping_interfaces::msg::Object transformed_object = object;
+    transformed_object.obb = transformed_marker;
+    transformed_object.cloud = transformed_object_cloud;
+    transformed_objects.push_back(transformed_object);
+  }
+
+
+  response->success = true;
+  response->message = "";
+}
+
+
+
 
 #include "rclcpp_components/register_node_macro.hpp"
 
