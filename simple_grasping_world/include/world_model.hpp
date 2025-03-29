@@ -88,7 +88,7 @@ struct PlaneDatabase
    * \param threshold Maximum height difference
    * \return Vector of matching planes
    */
-  std::vector<Plane> querry(float height, float threshold = 0.01f) const
+  std::vector<Plane> query(float height, float threshold = 0.01f) const
   {
     std::vector<Plane> result;
     auto lower = planes.lower_bound(height - threshold);
