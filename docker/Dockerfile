@@ -53,12 +53,18 @@ RUN apt update \
 WORKDIR ${ROS_WS}
 COPY pointcloud_server/pointcloud_server ${ROS_WS}/src/pointcloud_server/pointcloud_server
 COPY pointcloud_server/pointcloud_server_interfaces ${ROS_WS}/src/pointcloud_server/pointcloud_server_interfaces 
+RUN source /opt/ros/$ROS_DISTRO/setup.bash \
+ && MAKEFLAGS="-j2" colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --executor sequential --packages-select pointcloud_server pointcloud_server_interfaces
+
 COPY simple_grasping_interfaces ${ROS_WS}/src/simple_grasping/simple_grasping_interfaces
 COPY simple_grasping_perception ${ROS_WS}/src/simple_grasping/simple_grasping_perception
-COPY simple_grasping_world ${ROS_WS}/src/simple_grasping/simple_grasping_world
 RUN source /opt/ros/$ROS_DISTRO/setup.bash \
- && MAKEFLAGS="-j2" colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --executor sequential --packages-select pointcloud_server pointcloud_server_interfaces simple_grasping_interfaces simple_grasping_perception
+ && source ${ROS_WS}/install/setup.bash \
+ && MAKEFLAGS="-j2" colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --executor sequential --packages-select simple_grasping_interfaces simple_grasping_perception
+
+COPY simple_grasping_world ${ROS_WS}/src/simple_grasping/simple_grasping_world
 RUN source /opt/ros/$ROS_DISTRO/setup.bash \
  && source ${ROS_WS}/install/setup.bash \
  && MAKEFLAGS="-j2" colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --executor sequential --packages-select simple_grasping_world
-RUN echo "source ${ROS_WS}/install/setup.bash" >> /root/.bashrc
+
+ RUN echo "source ${ROS_WS}/install/setup.bash" >> /root/.bashrc
