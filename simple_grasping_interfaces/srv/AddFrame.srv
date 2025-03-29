@@ -1,0 +1,12 @@
+# Add a frame to the world model
+
+sensor_msgs/PointCloud2 cloud #if cloud.header.frame_id is empty, use pointcloud from topic instead
+bool add_frame #if true, the frame will be added to the map
+bool return_furnitures #if true, furnitures will be returned
+
+---
+
+bool success
+string message
+sensor_msgs/PointCloud2 aligned_cloud #input cloud in world frame
+Furniture[] furnitures #furnitures detected in the cloud

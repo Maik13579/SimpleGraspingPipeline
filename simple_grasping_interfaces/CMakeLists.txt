@@ -12,12 +12,14 @@ find_package(visualization_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 
 set(msg_files
+    "msg/Furniture.msg"
     "msg/Grasp.msg"
     "msg/Object.msg"
     "msg/Plane.msg"
 )
 
 set(service_files
+    "srv/AddFrame.srv"
     "srv/StartPerception.srv"
     "srv/GenerateGrasps.srv"
 )
