@@ -304,41 +304,14 @@ void SimpleGraspingWorldNode::add_frame_callback(
 
   // For each detected plane, transform both the marker and the inlier cloud.
   std::vector<simple_grasping_interfaces::msg::Plane> transformed_planes;
-  for (const auto &plane : perception_res->planes) {
-    // Transform the plane marker.
-    visualization_msgs::msg::Marker transformed_marker;
-    tf2::doTransform(plane.obb, transformed_marker, transformStamped);
-
-    // Transform the plane's inlier cloud.
-    sensor_msgs::msg::PointCloud2 transformed_plane_cloud;
-    tf2::doTransform(plane.cloud, transformed_plane_cloud, transformStamped);
-
-    // Create a transformed plane message.
-    simple_grasping_interfaces::msg::Plane transformed_plane = plane;
-    transformed_plane.obb = transformed_marker;
-    transformed_plane.cloud = transformed_plane_cloud;
-    // Optionally update plane equation values here if needed.
-    transformed_planes.push_back(transformed_plane);
-    RCLCPP_INFO(this->get_logger(), "Transformed plane: height = %.2f", transformed_marker.pose.position.z);
-  }
-
+  for (const auto &plane : perception_res->planes)
+    transformed_planes.push_back(transformPlane(plane, transformStamped));
+  
   // For each detected object, transform both the marker and the inlier cloud.
   std::vector<simple_grasping_interfaces::msg::Object> transformed_objects;
-  for (const auto &object : perception_res->objects) {
-    // Transform the object marker.
-    visualization_msgs::msg::Marker transformed_marker;
-    tf2::doTransform(object.obb, transformed_marker, transformStamped);
-
-    // Transform the object's inlier cloud.
-    sensor_msgs::msg::PointCloud2 transformed_object_cloud;
-    tf2::doTransform(object.cloud, transformed_object_cloud, transformStamped);
-
-    // Create a transformed object message.
-    simple_grasping_interfaces::msg::Object transformed_object = object;
-    transformed_object.obb = transformed_marker;
-    transformed_object.cloud = transformed_object_cloud;
-    transformed_objects.push_back(transformed_object);
-  }
+  for (const auto &object : perception_res->objects)
+    transformed_objects.push_back(transformObject(object, transformStamped));
+  
 
 
   response->success = true;

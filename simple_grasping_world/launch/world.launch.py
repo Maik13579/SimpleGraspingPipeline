@@ -20,6 +20,13 @@ def generate_launch_description():
         description='YAML file with parameters for the world component'
     )
 
+    # Declare launch argument to remap the input cloud topic
+    input_cloud_arg = DeclareLaunchArgument(
+        'input_cloud_topic',
+        default_value='~/input_cloud',
+        description='Topic to subscribe for input cloud'
+    )
+
     params_file = LaunchConfiguration('params_file')
 
     # Launch your node as a component in a container
@@ -35,12 +42,14 @@ def generate_launch_description():
                 package='simple_grasping_world',
                 plugin='SimpleGraspingWorldNode',
                 name='simple_grasping_world',
-                parameters=[params_file]
+                parameters=[params_file],
+                remappings=[('~/input_cloud', LaunchConfiguration('input_cloud_topic'))]
             )
         ]
     )
 
     return LaunchDescription([
         params_file_arg,
+        input_cloud_arg,
         container
     ])

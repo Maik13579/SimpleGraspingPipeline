@@ -4,6 +4,7 @@
 #include "world_model.hpp"
 #include "world_model_io.hpp"
 #include "params.hpp"
+#include "transform.hpp"
 
 #include <composition_interfaces/srv/load_node.hpp>
 #include <composition_interfaces/srv/unload_node.hpp>

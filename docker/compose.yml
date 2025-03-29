@@ -17,7 +17,7 @@ services:
       - ../world:/world
       - ../simple_grasping_world/params:/root/ros2_ws/src/simple_grasping/simple_grasping_world/params
       - ../simple_grasping_world/launch:/root/ros2_ws/src/simple_grasping/simple_grasping_world/launch
-    command: ros2 launch simple_grasping_world world.launch.py
+    command: ros2 launch simple_grasping_world world.launch.py input_cloud_topic:=/head_front_camera/depth_registered/points
 
   test:
     container_name: test
@@ -82,3 +82,30 @@ services:
           thresh_deg: 10.0
           pre_grasp_dist: 0.15
           retreat_dist: 0.05" 
+
+  test_world:
+    container_name: test_world
+    extends:
+      file: common.yml
+      service: common
+    command: 
+      - bash
+      - -c
+      - |
+          sleep 10
+          ros2 service call /simple_world/simple_grasping_world/add_frame simple_grasping_interfaces/srv/AddFrame "cloud:
+            header:
+              stamp:
+                sec: 0
+                nanosec: 0
+              frame_id: ''
+            height: 0
+            width: 0
+            fields: []
+            is_bigendian: false
+            point_step: 0
+            row_step: 0
+            data: []
+            is_dense: false
+          add_frame: false
+          return_furnitures: false"
