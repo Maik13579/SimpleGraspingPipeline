@@ -24,11 +24,11 @@ struct Plane
 {
   visualization_msgs::msg::Marker obb;         ///< Oriented bounding box of the plane
   float height;                                ///< Height (z value) of the plane
-  std::string object_id;                       ///< Associated object ID (name or label)
+  std::string furniture_id;                    ///< Associated furniture ID (name or label)
 };
 
 /**
- * @brief Stores the service clients for the objects
+ * @brief Stores the service clients for the furnitures
  */
 struct ServiceClients
 {
@@ -42,12 +42,12 @@ struct ServiceClients
 };
 
 /**
- * \brief Represents an object composed of one or more planes
+ * \brief Represents an furniture composed of one or more planes
  */
-struct Object
+struct Furniture
 {
-  std::string id;               ///< Unique object identifier (semantic name)
-  int32_t num_planes;           ///< Number of planes inside object
+  std::string id;               ///< Unique furniture identifier (semantic name)
+  int32_t num_planes;           ///< Number of planes inside furniture
   uint64_t unique_component_id; ///< Unique component identifier
   ServiceClients clients;       ///< Service clients
 };
@@ -97,17 +97,17 @@ struct PlaneDatabase
 };
 
 /**
- * \brief Get all planes from the database that belong to a given object.
- * \param object_id The object ID to search for
+ * \brief Get all planes from the database that belong to a given furniture.
+ * \param furniture_id The furniture ID to search for
  * \param db The plane database
- * \return All planes linked to the given object
+ * \return All planes linked to the given furniture
  */
-inline std::vector<Plane> get_planes_for_object(const std::string &object_id, const PlaneDatabase &db)
+inline std::vector<Plane> get_planes_for_furniture(const std::string &furniture_id, const PlaneDatabase &db)
 {
   std::vector<Plane> result;
   for (const auto &entry : db.planes)
   {
-    if (entry.second.object_id == object_id)
+    if (entry.second.furniture_id == furniture_id)
       result.push_back(entry.second);
   }
   return result;

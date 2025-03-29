@@ -17,8 +17,8 @@ SimpleGraspingWorldNode::SimpleGraspingWorldNode(const rclcpp::NodeOptions &opti
   // Load parameters
   load_parameters(config_, this);
 
-  std::filesystem::path objects_file = std::filesystem::path(config_.common.world_path) / "objects.yaml";
-  objects_ = load_world_model(objects_file.string());
+  std::filesystem::path furnitures_file = std::filesystem::path(config_.common.world_path) / "furnitures.yaml";
+  furnitures_ = load_world_model(furnitures_file.string());
 
   // Initialize TF2 buffer and listener for cloud transformation
   tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
@@ -32,10 +32,10 @@ SimpleGraspingWorldNode::SimpleGraspingWorldNode(const rclcpp::NodeOptions &opti
   loaded_ = false;
   timer_ = this->create_wall_timer(
     std::chrono::milliseconds(1000),
-    std::bind(&SimpleGraspingWorldNode::load_objects, this)
+    std::bind(&SimpleGraspingWorldNode::load_furnitures, this)
   );
 }
-void SimpleGraspingWorldNode::load_objects()
+void SimpleGraspingWorldNode::load_furnitures()
 {
   if (loaded_)
     return; //Shouldn't happen, but just in case
@@ -45,10 +45,10 @@ void SimpleGraspingWorldNode::load_objects()
     return;
   }
 
-  // Load objects
-  for (auto &obj : objects_)
-    load_object(obj);
-  RCLCPP_INFO(this->get_logger(), "Loaded all objects.");
+  // Load furnitures
+  for (auto &furniture : furnitures_)
+    load_furniture(furniture);
+  RCLCPP_INFO(this->get_logger(), "Loaded all furnitures.");
 
   // Cancel timer after first call (one-shot)
   timer_->cancel();
@@ -56,59 +56,59 @@ void SimpleGraspingWorldNode::load_objects()
 }
 
 
-void SimpleGraspingWorldNode::load_object(Object &obj)
+void SimpleGraspingWorldNode::load_furniture(Furniture &furniture)
 {
-  RCLCPP_INFO(this->get_logger(), "Loading object '%s'...", obj.id.c_str());
-  load_object_component(obj);
+  RCLCPP_INFO(this->get_logger(), "Loading furniture '%s'...", furniture.id.c_str());
+  load_furniture_component(furniture);
 
-  RCLCPP_INFO(this->get_logger(), "Creating service clients for object '%s'...", obj.id.c_str());
+  RCLCPP_INFO(this->get_logger(), "Creating service clients for furniture '%s'...", furniture.id.c_str());
 
-  std::string base_ns = "/simple_world/objects/" + obj.id + "/";
-  obj.clients.add = this->create_client<pointcloud_server_interfaces::srv::Add>(base_ns + "add");
-  obj.clients.clear = this->create_client<pointcloud_server_interfaces::srv::Clear>(base_ns + "clear");
-  obj.clients.clear_points = this->create_client<pointcloud_server_interfaces::srv::ClearPoints>(base_ns + "clear_points");
-  obj.clients.empty_around_point = this->create_client<pointcloud_server_interfaces::srv::EmptyAroundPoint>(base_ns + "empty_around_point");
-  obj.clients.get = this->create_client<pointcloud_server_interfaces::srv::Get>(base_ns + "get");
-  obj.clients.save = this->create_client<pointcloud_server_interfaces::srv::Save>(base_ns + "save");
-  obj.clients.set_grid_size = this->create_client<pointcloud_server_interfaces::srv::SetGridSize>(base_ns + "set_grid_size");
+  std::string base_ns = "/simple_world/furnitures/" + furniture.id + "/";
+  furniture.clients.add = this->create_client<pointcloud_server_interfaces::srv::Add>(base_ns + "add");
+  furniture.clients.clear = this->create_client<pointcloud_server_interfaces::srv::Clear>(base_ns + "clear");
+  furniture.clients.clear_points = this->create_client<pointcloud_server_interfaces::srv::ClearPoints>(base_ns + "clear_points");
+  furniture.clients.empty_around_point = this->create_client<pointcloud_server_interfaces::srv::EmptyAroundPoint>(base_ns + "empty_around_point");
+  furniture.clients.get = this->create_client<pointcloud_server_interfaces::srv::Get>(base_ns + "get");
+  furniture.clients.save = this->create_client<pointcloud_server_interfaces::srv::Save>(base_ns + "save");
+  furniture.clients.set_grid_size = this->create_client<pointcloud_server_interfaces::srv::SetGridSize>(base_ns + "set_grid_size");
 
   std::vector<std::pair<std::string, rclcpp::ClientBase::SharedPtr>> clients = {
-    {"add", obj.clients.add},
-    {"clear", obj.clients.clear},
-    {"clear_points", obj.clients.clear_points},
-    {"empty_around_point", obj.clients.empty_around_point},
-    {"get", obj.clients.get},
-    {"save", obj.clients.save},
-    {"set_grid_size", obj.clients.set_grid_size},
+    {"add", furniture.clients.add},
+    {"clear", furniture.clients.clear},
+    {"clear_points", furniture.clients.clear_points},
+    {"empty_around_point", furniture.clients.empty_around_point},
+    {"get", furniture.clients.get},
+    {"save", furniture.clients.save},
+    {"set_grid_size", furniture.clients.set_grid_size},
   };
 
   for (const auto &[name, client] : clients)
   {
-    RCLCPP_INFO(this->get_logger(), "Waiting for service '%s' of object '%s'...", name.c_str(), obj.id.c_str());
+    RCLCPP_INFO(this->get_logger(), "Waiting for service '%s' of furniture '%s'...", name.c_str(), furniture.id.c_str());
     client->wait_for_service();
-    RCLCPP_INFO(this->get_logger(), "Connected to service '%s' for object '%s'", name.c_str(), obj.id.c_str());
+    RCLCPP_INFO(this->get_logger(), "Connected to service '%s' for furniture '%s'", name.c_str(), furniture.id.c_str());
   }
 }
 
 
 
-void SimpleGraspingWorldNode::load_object_component(Object &obj)
+void SimpleGraspingWorldNode::load_furniture_component(Furniture &furniture)
 {
   auto req = std::make_shared<composition_interfaces::srv::LoadNode::Request>();
   req->package_name = "pointcloud_server";
   req->plugin_name = "pointcloud_server::PointcloudServerNode";
-  req->node_name = obj.id;
-  req->node_namespace = "/simple_world/objects";
+  req->node_name = furniture.id;
+  req->node_namespace = "/simple_world/furnitures";
 
-  std::filesystem::path object_file = std::filesystem::path(config_.common.world_path) / (obj.id + ".pcd");
+  std::filesystem::path furniture_file = std::filesystem::path(config_.common.world_path) / (furniture.id + ".pcd");
 
   std::vector<rclcpp::Parameter> params = {
-    rclcpp::Parameter("frame_id", config_.common.tf_prefix + obj.id),
-    rclcpp::Parameter("map_path", object_file.string()),
+    rclcpp::Parameter("frame_id", config_.common.tf_prefix + furniture.id),
+    rclcpp::Parameter("map_path", furniture_file.string()),
     rclcpp::Parameter("only_services", true),
-    rclcpp::Parameter("GridSize", config_.objects.grid_size),
-    rclcpp::Parameter("VoxelResolution", config_.objects.voxel_resolution),
-    rclcpp::Parameter("LeafSize", config_.objects.leaf_size),
+    rclcpp::Parameter("GridSize", config_.furnitures.grid_size),
+    rclcpp::Parameter("VoxelResolution", config_.furnitures.voxel_resolution),
+    rclcpp::Parameter("LeafSize", config_.furnitures.leaf_size),
     rclcpp::Parameter("MinProbabilityPerVoxel", 0.0),
     rclcpp::Parameter("DecayingThreshold", -1.0),
     rclcpp::Parameter("PublishFrequency", 0.2), // all 5 seconds
@@ -136,13 +136,13 @@ void SimpleGraspingWorldNode::load_object_component(Object &obj)
   req->remap_rules.push_back("~/reset:=~/_reset");
 
   auto future = load_node_client_->async_send_request(req,
-    [&obj, this](rclcpp::Client<composition_interfaces::srv::LoadNode>::SharedFuture result) {
+    [&furniture, this](rclcpp::Client<composition_interfaces::srv::LoadNode>::SharedFuture result) {
       if (result.get()->success) {
-        obj.unique_component_id = result.get()->unique_id;
-        RCLCPP_INFO(this->get_logger(), "Loaded node for object '%s' (component id: %lu)",
-                    obj.id.c_str(), obj.unique_component_id);
+        furniture.unique_component_id = result.get()->unique_id;
+        RCLCPP_INFO(this->get_logger(), "Loaded node for furniture '%s' (component id: %lu)",
+                    furniture.id.c_str(), furniture.unique_component_id);
       } else {
-        RCLCPP_ERROR(this->get_logger(), "Failed to load node for object '%s'", obj.id.c_str());
+        RCLCPP_ERROR(this->get_logger(), "Failed to load node for furniture '%s'", furniture.id.c_str());
       }
     }
   );

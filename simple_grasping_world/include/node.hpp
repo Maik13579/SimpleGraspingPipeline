@@ -33,28 +33,28 @@ private:
   rclcpp::Client<composition_interfaces::srv::LoadNode>::SharedPtr load_node_client_;
   rclcpp::Client<composition_interfaces::srv::UnloadNode>::SharedPtr unload_node_client_;
   rclcpp::TimerBase::SharedPtr timer_;
-  void load_objects(); // one shot timer callback to load components
+  void load_furnitures(); // one shot timer callback to load components
   bool loaded_;
 
   /**
    * 
-   * @brief Load a object and create its components and service clients
+   * @brief Load a furniture and create its components and service clients
    *
-   * @param obj The object to load
+   * @param furniture The furniture to load
    */
-  void load_object(Object &obj);
+  void load_furniture(Furniture &furniture);
 
   /**
    * 
-   * @brief Load a pointcloud server component for a given object
+   * @brief Load a pointcloud server component for a given furniture
    * 
-   * @param obj The object to load
+   * @param furniture The furniture to load
    */
-  void load_object_component(Object &obj);
+  void load_furniture_component(Furniture &furniture);
   
 
   PlaneDatabase plane_db_;             ///< Database of all detected planes
-  std::vector<Object> objects_;        ///< All detected/grouped objects
+  std::vector<Furniture> furnitures_;  ///< All detected/grouped furnitures
 
 };
 

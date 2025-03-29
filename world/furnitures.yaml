@@ -1,4 +1,4 @@
-objects:
+furnitures:
   - id: "table"
     num_planes: 1
   - id: "shelf"

@@ -29,7 +29,7 @@ struct CommonParams
     std::string tf_prefix;
 };
 
-struct ObjectsParams
+struct FurnitureParams
 {
     float voxel_resolution;
     float leaf_size;
@@ -39,7 +39,7 @@ struct ObjectsParams
 struct NodeConfig
 {
     CommonParams common;
-    ObjectsParams objects;
+    FurnitureParams furnitures;
 };
 
 void load_parameters(NodeConfig &config, rclcpp::Node *node);

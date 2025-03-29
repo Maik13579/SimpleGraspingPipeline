@@ -3,13 +3,13 @@ simple_world:
     ros__parameters:
       common:
         world_frame_id: "map" # frame id of the world
-        world_path: "/world"  # path to world folder containing pcd files and objects.yaml
-        tf_prefix: "world_"   # each objects tf will be [tf_prefix][object_id]
+        world_path: "/world"  # path to world folder containing pcd files and furnitures.yaml
+        tf_prefix: "world_"   # each furnitures tf will be [tf_prefix][furniture_id]
 
-      objects:
-        grid_size: 50                 # grid_size * voxel_resolution = object max side length
+      furnitures:
+        grid_size: 50                 # grid_size * voxel_resolution = furniture max side length
         voxel_resolution: 0.1         #[m]
         leaf_size: 0.01               #[m]
-        spatial_tolerance: 0.02       #[m] min distance between objects, if it gets closer, objects are merged
-        disable_merge_known: false    # if true, known objects won't be merged (known are objects that contain letters in id)
-                                      # unkown objects have just numbers in their id
+        spatial_tolerance: 0.02       #[m] min distance between furnitures, if it gets closer, furnitures are merged
+        disable_merge_known: false    # if true, known furnitures won't be merged (known are furnitures that contain letters in id)
+                                      # unkown furnitures have just numbers in their id
