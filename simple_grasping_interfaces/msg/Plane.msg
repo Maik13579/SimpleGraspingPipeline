@@ -1,5 +1,5 @@
-sensor_msgs/PointCloud2 cloud
-visualization_msgs/Marker obb
+sensor_msgs/PointCloud2 cloud # inlier cloud
+visualization_msgs/Marker obb # oriented bounding box
 
 #Plane equation ax + by + cz + d = 0
 float32 a
