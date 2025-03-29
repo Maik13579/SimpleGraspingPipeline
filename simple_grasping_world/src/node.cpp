@@ -302,11 +302,71 @@ void SimpleGraspingWorldNode::add_frame_callback(
   RCLCPP_INFO(this->get_logger(), "Perception returned %zu planes and %zu objects.", 
     perception_res->planes.size(), perception_res->objects.size());
 
-  // For each detected plane, transform both the marker and the inlier cloud.
+  // For each plane
   std::vector<simple_grasping_interfaces::msg::Plane> transformed_planes;
-  for (const auto &plane : perception_res->planes)
-    transformed_planes.push_back(transformPlane(plane, transformStamped));
-  
+  std::set<std::string> found_furniture_ids;
+  for (const auto &plane : perception_res->planes){
+
+    // Transform to world frame
+    auto transformed_plane = transformPlane(plane, transformStamped);
+    transformed_planes.push_back(transformed_plane);
+
+    // Convert to internal Plane struct.
+    Plane new_plane;
+    new_plane.obb = transformed_plane.obb;
+    new_plane.height = transformed_plane.obb.pose.position.z;
+    new_plane.furniture_id = "";  // Initially unset.
+
+    // Query the database for planes near this height.
+    auto candidates = plane_db_.query(new_plane.height, 0.01f); // Todo parameterize threshold.
+    std::vector<Plane> touching;
+    for (const auto &cand : candidates) {
+      if (planes_touch(new_plane, cand, 0.01f)) {
+        touching.push_back(cand);
+      }
+    }
+
+    if (touching.empty()) {// No touching planes found: create a new plane.
+      new_plane.furniture_id = "TOBEASSIGNED"; // mark as "to be assigned"
+
+    } else if (touching.size() == 1) {// Exactly one touching plane found: use it.
+      found_furniture_ids.insert(touching.front().furniture_id);
+
+    } else {// Multiple touching planes: print TODO message.
+      RCLCPP_WARN(rclcpp::get_logger("SimpleGraspingWorldNode"), //TODO
+                  "TODO: merge planes - multiple touching planes detected for new plane");
+      found_furniture_ids.insert(touching.front().furniture_id); // use the first for now
+    }
+
+    // Check if we need to assign a furniture id to the new plane.
+    if (new_plane.furniture_id == "TOBEASSIGNED") {
+      std::set<std::string> f_ids;
+
+      // get all planes in the database and check if they touch
+      auto all_planes = plane_db_.get_sorted_planes();
+      for (const auto &db_plane : all_planes) {
+        if (planes_touch(new_plane, db_plane, 0.01)) {
+          f_ids.insert(db_plane.furniture_id);
+        }
+      }
+      if (f_ids.empty()) { // No touching furniture found: create a new furniture
+        RCLCPP_WARN(rclcpp::get_logger("SimpleGraspingWorldNode"), //TODO
+                    "TODO: create new furniture");
+
+      } else if (f_ids.size() == 1) { // Exactly one touching furniture found: use it
+        new_plane.furniture_id = *f_ids.begin();
+        found_furniture_ids.insert(new_plane.furniture_id);
+
+      } else { // Multiple touching furnitures: merge all furnitures
+        RCLCPP_WARN(rclcpp::get_logger("SimpleGraspingWorldNode"), //TODO
+                    "TODO: merge furnitures - multiple furniture ids detected for new plane");
+        new_plane.furniture_id = *f_ids.begin(); // use the first for now
+        found_furniture_ids.insert(new_plane.furniture_id);
+      }
+      plane_db_.insert(new_plane); // add new plane to database
+    }
+  }
+
   // For each detected object, transform both the marker and the inlier cloud.
   std::vector<simple_grasping_interfaces::msg::Object> transformed_objects;
   for (const auto &object : perception_res->objects)
