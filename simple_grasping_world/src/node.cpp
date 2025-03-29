@@ -35,9 +35,11 @@ SimpleGraspingWorldNode::SimpleGraspingWorldNode(const rclcpp::NodeOptions &opti
   // Init service server
   callback_group_add_frame_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   add_frame_srv_ = this->create_service<simple_grasping_interfaces::srv::AddFrame>(
-    "~/add_frame", std::bind(&SimpleGraspingWorldNode::add_frame_callback, this, _1, _2),
-    rclcpp::ServicesQoS(),
+    "~/add_frame",
+    std::bind(&SimpleGraspingWorldNode::add_frame_callback, this, std::placeholders::_1, std::placeholders::_2),
+    rclcpp::ServicesQoS().get_rmw_qos_profile(),
     callback_group_add_frame_);
+
 
   // Schedule deferred loading after initialization
   loaded_ = false;
@@ -248,15 +250,18 @@ void SimpleGraspingWorldNode::add_frame_callback(
   // Get the input cloud from the request (or fallback to stored cloud)
   sensor_msgs::msg::PointCloud2 input_cloud;
   if (request->cloud.header.frame_id.empty()) {
-    if (latest_cloud_.data.empty()) {  // Check if the stored cloud is empty
-      input_cloud = *latest_cloud_;
-    } else {
+    // latest_cloud_ is stored as a value.
+    if (latest_cloud_.data.empty()) {
       response->success = false;
       response->message = "No cloud provided and no stored cloud available";
       return;
+    } else {
+      input_cloud = latest_cloud_;
+      RCLCPP_INFO(this->get_logger(), "Using stored cloud as input.");
     }
   } else {
     input_cloud = request->cloud;
+    RCLCPP_INFO(this->get_logger(), "Using provided cloud as input.");
   }
 
   // Lookup transform from input cloud frame to world frame.
