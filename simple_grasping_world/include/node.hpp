@@ -15,6 +15,7 @@
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/buffer.h>
 
+#include <simple_grasping_interfaces/srv/start_perception.hpp>
 
 #include <map>
 #include <vector>
@@ -32,6 +33,8 @@ private:
 
   rclcpp::Client<composition_interfaces::srv::LoadNode>::SharedPtr load_node_client_;
   rclcpp::Client<composition_interfaces::srv::UnloadNode>::SharedPtr unload_node_client_;
+  rclcpp::Client<simple_grasping_interfaces::srv::StartPerception>::SharedPtr start_perception_client_;
+  rclcpp::CallbackGroup::SharedPtr callback_group_timer_;
   rclcpp::TimerBase::SharedPtr timer_;
   void load_furnitures(); // one shot timer callback to load components
   bool loaded_;

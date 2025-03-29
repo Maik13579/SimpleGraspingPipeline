@@ -27,12 +27,15 @@ SimpleGraspingWorldNode::SimpleGraspingWorldNode(const rclcpp::NodeOptions &opti
   // Init service clients
   load_node_client_ = this->create_client<composition_interfaces::srv::LoadNode>("/simple_world/component_manager/_container/load_node");
   unload_node_client_ = this->create_client<composition_interfaces::srv::UnloadNode>("/simple_world/component_manager/_container/unload_node");
+  start_perception_client_ = this->create_client<simple_grasping_interfaces::srv::StartPerception>("/simple_grasping_perception/start_perception");
 
   // Schedule deferred loading after initialization
   loaded_ = false;
+  callback_group_timer_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   timer_ = this->create_wall_timer(
     std::chrono::milliseconds(1000),
-    std::bind(&SimpleGraspingWorldNode::load_furnitures, this)
+    std::bind(&SimpleGraspingWorldNode::load_furnitures, this),
+    callback_group_timer_
   );
 }
 void SimpleGraspingWorldNode::load_furnitures()
@@ -42,6 +45,11 @@ void SimpleGraspingWorldNode::load_furnitures()
 
   if (!load_node_client_->wait_for_service(std::chrono::seconds(1))) {
     RCLCPP_WARN(this->get_logger(), "Waiting for /simple_world/component_manager/_container/load_node service...");
+    return;
+  }
+
+  if (!start_perception_client_->wait_for_service(std::chrono::seconds(1))) {
+    RCLCPP_WARN(this->get_logger(), "Waiting for /simple_grasping_perception/start_perception service...");
     return;
   }
 
@@ -87,6 +95,75 @@ void SimpleGraspingWorldNode::load_furniture(Furniture &furniture)
     RCLCPP_INFO(this->get_logger(), "Waiting for service '%s' of furniture '%s'...", name.c_str(), furniture.id.c_str());
     client->wait_for_service();
     RCLCPP_INFO(this->get_logger(), "Connected to service '%s' for furniture '%s'", name.c_str(), furniture.id.c_str());
+  }
+
+  // Use get service to get the points
+  auto get_req = std::make_shared<pointcloud_server_interfaces::srv::Get::Request>();
+  auto get_result = furniture.clients.get->async_send_request(get_req);
+  auto result = get_result.get(); // This blocks so make sure to use a multi-threaded container
+  
+  if (!result->success) {
+    RCLCPP_WARN(this->get_logger(), "Failed to get cloud for '%s': %s", furniture.id.c_str(), result->message.c_str());
+    return;
+  }
+  
+  const auto &cloud = result->cloud;
+  if (cloud.data.empty()) {
+    RCLCPP_WARN(this->get_logger(), "Cloud for '%s' is empty, skipping perception", furniture.id.c_str());
+    return;
+  }
+
+  // Split labeled cloud into per-plane clouds
+  std::vector<sensor_msgs::msg::PointCloud2> labeled_clouds(furniture.num_planes);
+  for (auto &msg : labeled_clouds) {
+    msg.header = cloud.header;
+    msg.height = 1;
+    msg.is_dense = false;
+    msg.fields = cloud.fields;
+    msg.point_step = cloud.point_step;
+    msg.is_bigendian = cloud.is_bigendian;
+  }
+
+  const uint32_t label_offset = [&]() {
+    for (const auto &field : cloud.fields) {
+      if (field.name == "label") return field.offset;
+    }
+    throw std::runtime_error("No label field in cloud");
+  }();
+
+  for (size_t i = 0; i < cloud.width * cloud.height; ++i) {
+    const uint8_t *point_ptr = &cloud.data[i * cloud.point_step];
+    uint16_t label = *reinterpret_cast<const uint16_t *>(point_ptr + label_offset);
+    if (label == 0 || label > furniture.num_planes) continue;
+
+    auto &msg = labeled_clouds[label - 1];
+    msg.data.insert(msg.data.end(), point_ptr, point_ptr + cloud.point_step);
+    msg.width++;
+    msg.row_step = msg.point_step * msg.width;
+  }
+
+  // Send each per-plane cloud to perception service
+  for (size_t i = 0; i < labeled_clouds.size(); ++i) {
+    auto req = std::make_shared<simple_grasping_interfaces::srv::StartPerception::Request>();
+    req->cloud = labeled_clouds[i];
+    req->only_planes = true;
+    req->sort_planes_by_height = true;
+
+    auto result = start_perception_client_->async_send_request(req);
+    auto response = result.get();
+    if (!response->success) {
+      RCLCPP_WARN(this->get_logger(), "Perception failed for plane %ld of furniture '%s'", i + 1, furniture.id.c_str());
+      continue;
+    }
+
+    // Store result in plane database
+    for (const auto &plane : response->planes) {
+      Plane p;
+      p.obb = plane.obb;
+      p.height = plane.obb.pose.position.z;
+      p.furniture_id = furniture.id;
+      plane_db_.insert(p);
+    }
   }
 }
 
