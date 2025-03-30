@@ -26,6 +26,7 @@
 
 #include <map>
 #include <vector>
+#include <unordered_map>
 #include <optional>
 
 class SimpleGraspingWorldNode : public rclcpp::Node
@@ -86,8 +87,7 @@ private:
     bool return_cloud=true);
   
   PlaneDatabase plane_db_;             ///< Database of all detected planes
-  std::vector<Furniture> furnitures_;  ///< All detected/grouped furnitures
-
+  std::unordered_map<std::string, Furniture> furnitures_;  ///< All detected/grouped furnitures
 };
 
 #endif // SIMPLE_GRASPING_WORLD_NODE_HPP

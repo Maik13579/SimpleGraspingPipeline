@@ -71,8 +71,8 @@ void SimpleGraspingWorldNode::load_furnitures()
   }
 
   // Load furnitures
-  for (auto &furniture : furnitures_)
-    load_furniture(furniture);
+  for (auto &kv : furnitures_)
+    load_furniture(kv.second);
   RCLCPP_INFO(this->get_logger(), "Loaded all furnitures.");
 
   // Cancel timer after first call (one-shot)
@@ -264,58 +264,41 @@ void SimpleGraspingWorldNode::add_frame_callback(
   auto transformed_planes = transform::transformPlanes(perception_res->planes, transformStamped);
   auto transformed_objects = transform::transformObjects(perception_res->objects, transformStamped);
 
-  // For each plane
-  std::set<std::string> found_furniture_ids;
-  for (const auto &plane : transformed_planes){
+  RCLCPP_INFO(this->get_logger(), "Transformed planes/objects to %s to world frame.");
 
-    // Convert to internal Plane struct.
-    Plane new_plane;
-    new_plane.obb = plane.obb;
-    new_plane.height = plane.obb.pose.position.z;
-    new_plane.furniture_id = "";  // Initially unset.
-
-    // Query the database for planes near this height.
-    auto touching = plane_db_.query(new_plane, 0.01f); // Todo parameterize threshold.
-    if (touching.empty()) {// No touching planes found: create a new plane.
-      new_plane.furniture_id = "TOBEASSIGNED"; // mark as "to be assigned"
-
-    } else if (touching.size() == 1) {// Exactly one touching plane found: use it.
-      found_furniture_ids.insert(touching.front().furniture_id);
-
-    } else {// Multiple touching planes: print TODO message.
-      RCLCPP_WARN(rclcpp::get_logger("SimpleGraspingWorldNode"), //TODO
-                  "TODO: merge planes - multiple touching planes detected for new plane");
-      found_furniture_ids.insert(touching.front().furniture_id); // use the first for now
-    }
-
-    // Check if we need to assign a furniture id to the new plane.
-    if (new_plane.furniture_id == "TOBEASSIGNED") {
-      std::set<std::string> f_ids;
-
-      // get all planes in the database and check if they touch
-      auto all_planes = plane_db_.get_sorted_planes();
-      for (const auto &db_plane : all_planes) {
-        if (planes_touch(new_plane, db_plane, 0.01)) {
-          f_ids.insert(db_plane.furniture_id);
-        }
-      }
-      if (f_ids.empty()) { // No touching furniture found: create a new furniture
-        RCLCPP_WARN(rclcpp::get_logger("SimpleGraspingWorldNode"), //TODO
-                    "TODO: create new furniture");
-
-      } else if (f_ids.size() == 1) { // Exactly one touching furniture found: use it
-        new_plane.furniture_id = *f_ids.begin();
-        found_furniture_ids.insert(new_plane.furniture_id);
-
-      } else { // Multiple touching furnitures: merge all furnitures
-        RCLCPP_WARN(rclcpp::get_logger("SimpleGraspingWorldNode"), //TODO
-                    "TODO: merge furnitures - multiple furniture ids detected for new plane");
-        new_plane.furniture_id = *f_ids.begin(); // use the first for now
-        found_furniture_ids.insert(new_plane.furniture_id);
-      }
-      plane_db_.insert(new_plane); // add new plane to database
-    }
+  // Convert to internal Plane struct.
+  std::vector<Plane> planes(transformed_planes.size());
+  for (size_t i = 0; i < transformed_planes.size(); i++) {
+    planes[i].obb = transformed_planes[i].obb;
+    planes[i].height = transformed_planes[i].obb.pose.position.z;
+    planes[i].furniture_id = "";  // Initially unset.
   }
+
+  // Get touching furniture ids
+  std::set<std::string> furniture_ids = plane_db_.get_touching_furniture_ids(planes, 0.01f);
+  RCLCPP_INFO(this->get_logger(), "Found %zu furniture ids that touch the planes.", furniture_ids.size());
+
+  // Get furniture clouds
+  std::vector<sensor_msgs::msg::PointCloud2> furniture_clouds;
+  for (const auto &furniture_id : furniture_ids) {
+     // Use get service to get the points
+    auto get_req = std::make_shared<pointcloud_server_interfaces::srv::Get::Request>();
+    auto get_result = furnitures_[furniture_id].clients.get->async_send_request(get_req);
+    auto result = get_result.get(); // This blocks so make sure to use a multi-threaded container
+    
+    if (!result->success) {
+      RCLCPP_WARN(this->get_logger(), "Failed to get cloud for '%s': %s", furnitures_[furniture_id].id.c_str(), result->message.c_str());
+      response->success = false;
+      response->message = result->message;
+      return;
+    }
+    // Extract only points that belong to this furniture (no objects on it)
+    auto cloud = utils::extractLabeledCloud(result->cloud, furnitures_[furniture_id].num_planes);
+    furniture_clouds.push_back(cloud);
+  }
+
+
+ 
 
   response->success = true;
   response->message = "";

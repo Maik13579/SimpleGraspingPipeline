@@ -72,6 +72,8 @@ struct PlaneDatabase
    */
   void insert(const Plane &p)
   {
+    if (p.furniture_id.empty()) //throw error
+      throw std::invalid_argument("Plane must have a furniture id.");
     planes.emplace(p.obb.pose.position.z, p);
   }
 
@@ -120,6 +122,45 @@ struct PlaneDatabase
     }
     return result;
   }
+
+  /**
+   * \brief Query all furniture ids that have a plane touching the given plane.
+   * \param p The reference plane.
+   * \param tolerance Tolerance for touching.
+   * \return Set of furniture ids from the database that have a plane touching p.
+   */
+  std::set<std::string> get_touching_furniture_ids(const Plane &p, double tolerance = 0.01) const
+  {
+    std::set<std::string> found_furniture_ids;
+    auto candidates = query(p, tolerance);
+    for (const auto &cand : candidates)
+    {
+      if (!cand.furniture_id.empty())
+        found_furniture_ids.insert(cand.furniture_id);
+    }
+    return found_furniture_ids;
+  }
+
+  /**
+   * \brief Query all furniture ids that have a plane touching any of the given planes.
+   * \param planes The list of reference planes.
+   * \param tolerance Tolerance for touching.
+   * \return Set of furniture ids from the database that have a plane touching any of the given planes.
+   */
+  std::set<std::string> get_touching_furniture_ids(const std::vector<Plane> &planes, double tolerance = 0.01) const
+  {
+    std::set<std::string> found_furniture_ids;
+    for (const auto &p : planes)
+    {
+      auto ids = get_touching_furniture_ids(p, tolerance);
+      for (const auto &id : ids)
+      {
+        if (!id.empty())
+          found_furniture_ids.insert(id);
+      }
+    }
+    return found_furniture_ids;
+  }
 };
 
 
@@ -139,6 +180,7 @@ inline std::vector<Plane> get_planes_for_furniture(const std::string &furniture_
   }
   return result;
 }
+
 
 /**
  * \brief Compute the 2D corners of a marker's oriented bounding box.
