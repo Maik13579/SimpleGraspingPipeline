@@ -260,19 +260,18 @@ void SimpleGraspingWorldNode::add_frame_callback(
   RCLCPP_INFO(this->get_logger(), "Perception returned %zu planes and %zu objects.", 
     perception_res->planes.size(), perception_res->objects.size());
 
-  // For each plane
-  std::vector<simple_grasping_interfaces::msg::Plane> transformed_planes;
-  std::set<std::string> found_furniture_ids;
-  for (const auto &plane : perception_res->planes){
+  // Transform to world frame
+  auto transformed_planes = transform::transformPlanes(perception_res->planes, transformStamped);
+  auto transformed_objects = transform::transformObjects(perception_res->objects, transformStamped);
 
-    // Transform to world frame
-    auto transformed_plane = transformPlane(plane, transformStamped);
-    transformed_planes.push_back(transformed_plane);
+  // For each plane
+  std::set<std::string> found_furniture_ids;
+  for (const auto &plane : transformed_planes){
 
     // Convert to internal Plane struct.
     Plane new_plane;
-    new_plane.obb = transformed_plane.obb;
-    new_plane.height = transformed_plane.obb.pose.position.z;
+    new_plane.obb = plane.obb;
+    new_plane.height = plane.obb.pose.position.z;
     new_plane.furniture_id = "";  // Initially unset.
 
     // Query the database for planes near this height.
@@ -317,13 +316,6 @@ void SimpleGraspingWorldNode::add_frame_callback(
       plane_db_.insert(new_plane); // add new plane to database
     }
   }
-
-  // For each detected object, transform both the marker and the inlier cloud.
-  std::vector<simple_grasping_interfaces::msg::Object> transformed_objects;
-  for (const auto &object : perception_res->objects)
-    transformed_objects.push_back(transformObject(object, transformStamped));
-  
-
 
   response->success = true;
   response->message = "";
