@@ -131,33 +131,7 @@ void SimpleGraspingWorldNode::load_furniture(Furniture &furniture)
   }
 
   // Split labeled cloud into per-plane clouds
-  std::vector<sensor_msgs::msg::PointCloud2> labeled_clouds(furniture.num_planes);
-  for (auto &msg : labeled_clouds) {
-    msg.header = cloud.header;
-    msg.height = 1;
-    msg.is_dense = false;
-    msg.fields = cloud.fields;
-    msg.point_step = cloud.point_step;
-    msg.is_bigendian = cloud.is_bigendian;
-  }
-
-  const uint32_t label_offset = [&]() {
-    for (const auto &field : cloud.fields) {
-      if (field.name == "label") return field.offset;
-    }
-    throw std::runtime_error("No label field in cloud");
-  }();
-
-  for (size_t i = 0; i < cloud.width * cloud.height; ++i) {
-    const uint8_t *point_ptr = &cloud.data[i * cloud.point_step];
-    uint16_t label = *reinterpret_cast<const uint16_t *>(point_ptr + label_offset);
-    if (label == 0 || label > furniture.num_planes) continue;
-
-    auto &msg = labeled_clouds[label - 1];
-    msg.data.insert(msg.data.end(), point_ptr, point_ptr + cloud.point_step);
-    msg.width++;
-    msg.row_step = msg.point_step * msg.width;
-  }
+  std::vector<sensor_msgs::msg::PointCloud2> labeled_clouds = utils::extractLabeledClouds(cloud, furniture.num_planes, 1);
 
   // Send each per-plane cloud to perception service
   for (size_t i = 0; i < labeled_clouds.size(); ++i) {
