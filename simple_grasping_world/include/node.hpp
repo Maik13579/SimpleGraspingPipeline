@@ -72,8 +72,19 @@ private:
    * @param furniture The furniture to load
    */
   void load_furniture_component(Furniture &furniture);
-  
 
+  /**
+   * 
+   * @brief Use the perception service
+   */
+  std::shared_ptr<simple_grasping_interfaces::srv::StartPerception::Response> start_perception(
+    const sensor_msgs::msg::PointCloud2 &cloud,
+    bool only_planes=false,
+    bool sort_planes_by_height=true,
+    double height_above_plane=0.3,
+    double width_adjustment=-0.05,
+    bool return_cloud=true);
+  
   PlaneDatabase plane_db_;             ///< Database of all detected planes
   std::vector<Furniture> furnitures_;  ///< All detected/grouped furnitures
 

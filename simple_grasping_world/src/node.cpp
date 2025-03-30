@@ -135,13 +135,7 @@ void SimpleGraspingWorldNode::load_furniture(Furniture &furniture)
 
   // Send each per-plane cloud to perception service
   for (size_t i = 0; i < labeled_clouds.size(); ++i) {
-    auto req = std::make_shared<simple_grasping_interfaces::srv::StartPerception::Request>();
-    req->cloud = labeled_clouds[i];
-    req->only_planes = true;
-    req->sort_planes_by_height = true;
-
-    auto result = start_perception_client_->async_send_request(req);
-    auto response = result.get();
+    auto response = start_perception(labeled_clouds[i], true);
     if (!response->success) {
       RCLCPP_WARN(this->get_logger(), "Perception failed for plane %ld of furniture '%s'", i + 1, furniture.id.c_str());
       continue;
@@ -255,17 +249,7 @@ void SimpleGraspingWorldNode::add_frame_callback(
   }
 
   // Call the perception service
-  auto perception_req = std::make_shared<simple_grasping_interfaces::srv::StartPerception::Request>();
-  perception_req->cloud = input_cloud;
-  perception_req->only_planes = false;
-  perception_req->sort_planes_by_height = true;
-  perception_req->height_above_plane = 0.3;
-  perception_req->width_adjustment = -0.05;
-  perception_req->return_cloud = true;
-  RCLCPP_INFO(this->get_logger(), "Calling perception service...");
-  auto future = start_perception_client_->async_send_request(perception_req);
-  auto perception_res = future.get(); 
-
+  auto perception_res = start_perception(input_cloud); 
   if (!perception_res->success) {
     response->success = false;
     response->message = perception_res->message;
@@ -352,6 +336,28 @@ void SimpleGraspingWorldNode::add_frame_callback(
   response->message = "";
 }
 
+std::shared_ptr<simple_grasping_interfaces::srv::StartPerception::Response> 
+SimpleGraspingWorldNode::start_perception(
+  const sensor_msgs::msg::PointCloud2 &cloud,
+  bool only_planes,
+  bool sort_planes_by_height,
+  double height_above_plane,
+  double width_adjustment,
+  bool return_cloud) 
+{
+  auto perception_req = std::make_shared<simple_grasping_interfaces::srv::StartPerception::Request>();
+  perception_req->cloud = cloud;
+  perception_req->only_planes = only_planes;
+  perception_req->sort_planes_by_height = sort_planes_by_height;
+  perception_req->height_above_plane = height_above_plane;
+  perception_req->width_adjustment = width_adjustment;
+  perception_req->return_cloud = return_cloud;
+  RCLCPP_INFO(this->get_logger(), "Calling perception service...");
+  
+  auto future = start_perception_client_->async_send_request(perception_req);
+  auto perception_res = future.get(); // blocks until the result is available  
+  return perception_res;
+}
 
 
 
