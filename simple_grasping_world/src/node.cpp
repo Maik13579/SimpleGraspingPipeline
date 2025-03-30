@@ -256,8 +256,15 @@ void SimpleGraspingWorldNode::add_frame_callback(
     RCLCPP_ERROR(this->get_logger(), "Perception failed: %s", perception_res->message.c_str());
     return;
   }
+
+  if (perception_res->planes.empty()) {
+    response->success = false;
+    response->message = "Perception returned no planes.";
+    RCLCPP_ERROR(this->get_logger(), "Perception returned no planes.");
+    return;
+  }
   
-  RCLCPP_INFO(this->get_logger(), "Perception returned %zu planes and %zu objects.", 
+  RCLCPP_INFO(this->get_logger(), "Perception returned %zu planes with %zu objects.", 
     perception_res->planes.size(), perception_res->objects.size());
 
   // Transform to world frame
@@ -273,14 +280,13 @@ void SimpleGraspingWorldNode::add_frame_callback(
     planes[i].height = transformed_planes[i].obb.pose.position.z;
     planes[i].furniture_id = "";  // Initially unset.
   }
-
-  // Get touching furniture ids
+  // Get touching furnitures
   std::set<std::string> furniture_ids = plane_db_.get_touching_furniture_ids(planes, 0.01f);
   std::vector<sensor_msgs::msg::PointCloud2> furniture_clouds;
   furniture_clouds.reserve(furniture_ids.size());
   if (furniture_ids.empty() && !request->add_frame) {
     response->success = false;
-    response->message = "No furniture ids found that touch the planes.";
+    response->message = "No furnitures found that touch the planes.";
     return;
   } else if (!furniture_ids.empty()) {
     RCLCPP_INFO(this->get_logger(), "Found %zu furniture ids that touch the planes.", furniture_ids.size());
