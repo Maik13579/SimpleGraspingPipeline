@@ -55,6 +55,10 @@ struct Furniture
   ServiceClients clients;       ///< Service clients
 };
 
+
+// Forward declaration of planes_touch so it can be used in PlaneDatabase.
+inline bool planes_touch(const Plane &p1, const Plane &p2, double tolerance = 0.0);
+
 /**
  * \brief Stores and organizes all detected planes, indexed by their height.
  */
@@ -97,7 +101,27 @@ struct PlaneDatabase
       result.push_back(it->second);
     return result;
   }
+
+ /**
+   * @brief Query all planes in the database that touch the given plane.
+   * @param p The reference plane.
+   * @param tolerance Tolerance for touching.
+   * @return Vector of planes from the database that touch p.
+   */
+  std::vector<Plane> query(const Plane &p, double tolerance = 0.01) const
+  {
+    std::vector<Plane> result;
+    // Use the existing query method to narrow candidates by height.
+    auto candidates = query(p.obb.pose.position.z, tolerance);
+    for (const auto &cand : candidates)
+    {
+      if (planes_touch(p, cand, tolerance))
+        result.push_back(cand);
+    }
+    return result;
+  }
 };
+
 
 /**
  * \brief Get all planes from the database that belong to a given furniture.
@@ -115,6 +139,7 @@ inline std::vector<Plane> get_planes_for_furniture(const std::string &furniture_
   }
   return result;
 }
+
 /**
  * \brief Compute the 2D corners of a marker's oriented bounding box.
  * \param m The marker representing the OBB.
@@ -237,7 +262,7 @@ inline bool areOBBsIntersecting(const visualization_msgs::msg::Marker &m1,
  * \param tolerance Optional tolerance.
  * \return True if the planes' OBBs intersect or touch within tolerance, false otherwise.
  */
-inline bool planes_touch(const Plane &p1, const Plane &p2, double tolerance = 0.0)
+inline bool planes_touch(const Plane &p1, const Plane &p2, double tolerance)
 {
   return areOBBsIntersecting(p1.obb, p2.obb, tolerance);
 }

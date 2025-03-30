@@ -276,14 +276,7 @@ void SimpleGraspingWorldNode::add_frame_callback(
     new_plane.furniture_id = "";  // Initially unset.
 
     // Query the database for planes near this height.
-    auto candidates = plane_db_.query(new_plane.height, 0.01f); // Todo parameterize threshold.
-    std::vector<Plane> touching;
-    for (const auto &cand : candidates) {
-      if (planes_touch(new_plane, cand, 0.01f)) {
-        touching.push_back(cand);
-      }
-    }
-
+    auto touching = plane_db_.query(new_plane, 0.01f); // Todo parameterize threshold.
     if (touching.empty()) {// No touching planes found: create a new plane.
       new_plane.furniture_id = "TOBEASSIGNED"; // mark as "to be assigned"
 
