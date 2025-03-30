@@ -276,26 +276,35 @@ void SimpleGraspingWorldNode::add_frame_callback(
 
   // Get touching furniture ids
   std::set<std::string> furniture_ids = plane_db_.get_touching_furniture_ids(planes, 0.01f);
-  RCLCPP_INFO(this->get_logger(), "Found %zu furniture ids that touch the planes.", furniture_ids.size());
-
-  // Get furniture clouds
   std::vector<sensor_msgs::msg::PointCloud2> furniture_clouds;
-  for (const auto &furniture_id : furniture_ids) {
-     // Use get service to get the points
-    auto get_req = std::make_shared<pointcloud_server_interfaces::srv::Get::Request>();
-    auto get_result = furnitures_[furniture_id].clients.get->async_send_request(get_req);
-    auto result = get_result.get(); // This blocks so make sure to use a multi-threaded container
-    
-    if (!result->success) {
-      RCLCPP_WARN(this->get_logger(), "Failed to get cloud for '%s': %s", furnitures_[furniture_id].id.c_str(), result->message.c_str());
-      response->success = false;
-      response->message = result->message;
-      return;
+  furniture_clouds.reserve(furniture_ids.size());
+  if (furniture_ids.empty() && !request->add_frame) {
+    response->success = false;
+    response->message = "No furniture ids found that touch the planes.";
+    return;
+  } else if (!furniture_ids.empty()) {
+    RCLCPP_INFO(this->get_logger(), "Found %zu furniture ids that touch the planes.", furniture_ids.size());
+
+    for (const auto &furniture_id : furniture_ids) {
+       // Use get service to get the points
+      auto get_req = std::make_shared<pointcloud_server_interfaces::srv::Get::Request>();
+      auto get_result = furnitures_[furniture_id].clients.get->async_send_request(get_req);
+      auto result = get_result.get(); // This blocks so make sure to use a multi-threaded container
+      
+      if (!result->success) {
+        RCLCPP_WARN(this->get_logger(), "Failed to get cloud for '%s': %s", furnitures_[furniture_id].id.c_str(), result->message.c_str());
+        response->success = false;
+        response->message = result->message;
+        return;
+      }
+      // Extract only points that belong to this furniture (no objects on it)
+      auto cloud = utils::extractLabeledCloud(result->cloud, furnitures_[furniture_id].num_planes);
+      furniture_clouds.push_back(cloud);
     }
-    // Extract only points that belong to this furniture (no objects on it)
-    auto cloud = utils::extractLabeledCloud(result->cloud, furnitures_[furniture_id].num_planes);
-    furniture_clouds.push_back(cloud);
+
+    // TODO ICP TO ALIGN SCAN WITH FURNITURES
   }
+ 
 
 
  
