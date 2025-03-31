@@ -6,6 +6,7 @@
 #include "pointcloud_server_interfaces/srv/clear_points.hpp"
 #include "pointcloud_server_interfaces/srv/empty_around_point.hpp"
 #include "pointcloud_server_interfaces/srv/get.hpp"
+#include "pointcloud_server_interfaces/srv/registration.hpp"
 #include "pointcloud_server_interfaces/srv/save.hpp"
 #include "pointcloud_server_interfaces/srv/set_grid_size.hpp"
 
@@ -94,6 +95,7 @@ void SimpleGraspingWorldNode::load_furniture(Furniture &furniture)
   furniture.clients.clear_points = this->create_client<pointcloud_server_interfaces::srv::ClearPoints>(base_ns + "clear_points");
   furniture.clients.empty_around_point = this->create_client<pointcloud_server_interfaces::srv::EmptyAroundPoint>(base_ns + "empty_around_point");
   furniture.clients.get = this->create_client<pointcloud_server_interfaces::srv::Get>(base_ns + "get");
+  furniture.clients.registration = this->create_client<pointcloud_server_interfaces::srv::Registration>(base_ns + "registration");
   furniture.clients.save = this->create_client<pointcloud_server_interfaces::srv::Save>(base_ns + "save");
   furniture.clients.set_grid_size = this->create_client<pointcloud_server_interfaces::srv::SetGridSize>(base_ns + "set_grid_size");
 
@@ -103,6 +105,7 @@ void SimpleGraspingWorldNode::load_furniture(Furniture &furniture)
     {"clear_points", furniture.clients.clear_points},
     {"empty_around_point", furniture.clients.empty_around_point},
     {"get", furniture.clients.get},
+    {"registration", furniture.clients.registration},
     {"save", furniture.clients.save},
     {"set_grid_size", furniture.clients.set_grid_size},
   };
@@ -310,9 +313,6 @@ void SimpleGraspingWorldNode::add_frame_callback(
 
     // TODO ICP TO ALIGN SCAN WITH FURNITURES
   }
- 
-
-
  
 
   response->success = true;

@@ -17,6 +17,7 @@
 #include "pointcloud_server_interfaces/srv/clear_points.hpp"
 #include "pointcloud_server_interfaces/srv/empty_around_point.hpp"
 #include "pointcloud_server_interfaces/srv/get.hpp"
+#include "pointcloud_server_interfaces/srv/registration.hpp"
 #include "pointcloud_server_interfaces/srv/save.hpp"
 #include "pointcloud_server_interfaces/srv/set_grid_size.hpp"
 
@@ -40,6 +41,7 @@ struct ServiceClients
   rclcpp::Client<pointcloud_server_interfaces::srv::ClearPoints>::SharedPtr clear_points;
   rclcpp::Client<pointcloud_server_interfaces::srv::EmptyAroundPoint>::SharedPtr empty_around_point;
   rclcpp::Client<pointcloud_server_interfaces::srv::Get>::SharedPtr get;
+  rclcpp::Client<pointcloud_server_interfaces::srv::Registration>::SharedPtr registration;
   rclcpp::Client<pointcloud_server_interfaces::srv::Save>::SharedPtr save;
   rclcpp::Client<pointcloud_server_interfaces::srv::SetGridSize>::SharedPtr set_grid_size;
 };
